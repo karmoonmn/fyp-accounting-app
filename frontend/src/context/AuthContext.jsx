@@ -9,6 +9,9 @@ import {
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
 } from 'firebase/auth'
@@ -64,8 +67,13 @@ export function AuthProvider({ children }) {
     })
   }, [refreshMe])
 
-  const signIn = useCallback(async (email, password) => {
+  const signIn = useCallback(async (email, password, opts = {}) => {
     setMeError(null)
+    const remember = Boolean(opts.remember)
+    await setPersistence(
+      auth,
+      remember ? browserLocalPersistence : browserSessionPersistence,
+    )
     await signInWithEmailAndPassword(auth, email.trim(), password)
   }, [])
 

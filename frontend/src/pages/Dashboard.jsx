@@ -138,6 +138,7 @@ export default function Dashboard() {
                   <li key={inv.id}>
                     #{inv.id} — {inv.docNumber ?? '—'} — {inv.txnDate ?? '—'} —{' '}
                     {inv.totalAmt != null ? String(inv.totalAmt) : '—'}
+                    {inv.company}
                   </li>
                 ))}
               </ul>

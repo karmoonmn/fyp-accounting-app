@@ -6,7 +6,10 @@ import lombok.Getter;
 public enum ErrorCode {
 
     //    Invoice
-    INVOICE_NOT_FOUND("INV_404", "Invoice not found");
+    INVOICE_NOT_FOUND("INV_404", "Invoice not found"),
+
+    //  account
+    ACCOUNT_NOT_FOUND("ACC_404", "Account not found");
 
     private final String code;
     private final String message;

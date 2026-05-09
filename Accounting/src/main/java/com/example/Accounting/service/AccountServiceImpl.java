@@ -19,7 +19,7 @@ public class AccountServiceImpl implements AccountService {
     private final AccountMapper accountMapper;
 
     @Override
-    public void createAccount(AccountReq req) throws AccountNotFoundException {
+    public Account createAccount(AccountReq req) throws AccountNotFoundException {
         Account account = accountMapper.toEntity(req);
 
         if (req.getParentId() != null) {
@@ -29,6 +29,7 @@ public class AccountServiceImpl implements AccountService {
         }
         account.setAccountCode(generateAccountCode(req.getAccountType()));
         accountRepo.save(account);
+        return account;
     }
 
     private String generateAccountCode(AccountType type) {

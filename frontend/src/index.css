@@ -1,9 +1,46 @@
-html,
-body,
-#root {
-  min-height: 100%;
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  .dark {
+    color-scheme: dark;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+  }
+
+  .dark body {
+    @apply bg-slate-950 text-slate-100;
+  }
 }
 
-#root {
-  display: block;
+@layer components {
+  .auth-shell {
+    @apply min-h-full;
+  }
+
+  .auth-bg {
+    @apply min-h-full;
+    background:
+      radial-gradient(1000px 600px at 20% 0%, rgba(56, 189, 248, 0.18), transparent 55%),
+      radial-gradient(900px 500px at 100% 0%, rgba(99, 102, 241, 0.14), transparent 50%),
+      radial-gradient(900px 500px at 0% 100%, rgba(16, 185, 129, 0.10), transparent 55%);
+  }
+
+  .dark .auth-bg {
+    background:
+      radial-gradient(1000px 600px at 20% 0%, rgba(56, 189, 248, 0.14), transparent 55%),
+      radial-gradient(900px 500px at 100% 0%, rgba(99, 102, 241, 0.12), transparent 50%),
+      radial-gradient(900px 500px at 0% 100%, rgba(16, 185, 129, 0.08), transparent 55%);
+  }
 }

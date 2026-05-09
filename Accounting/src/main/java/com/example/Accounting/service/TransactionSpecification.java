@@ -1,5 +1,6 @@
 package com.example.Accounting.service;
 
+import com.example.Accounting.constant.TransConstant;
 import com.example.Accounting.model.Bill;
 import com.example.Accounting.model.Invoice;
 import com.example.Accounting.model.Transaction;
@@ -20,6 +21,17 @@ public class TransactionSpecification {
             List<Predicate> predicates = new ArrayList<>();
 
             predicates.add(cb.equal(root.get("company").get("id"), companyId));
+
+            if (filter.getType() != null) {
+                switch (filter.getType()) {
+                    case TransConstant.INVOICE -> predicates.add(cb.equal(root.type(), Invoice.class));
+                    case TransConstant.BILL -> predicates.add(cb.equal(root.type(), Bill.class));
+//                    case TransConstant.PAYMENT -> predicates.add(cb.equal(root.type(), Payment.class));
+                }
+            }
+            if (TransConstant.INVOICE.equalsIgnoreCase(filter.getType())) {
+                predicates.add(cb.equal(root.type(), Invoice.class));
+            }
 
             if (filter.getTxnDate() != null) {
                 predicates.add(cb.equal(

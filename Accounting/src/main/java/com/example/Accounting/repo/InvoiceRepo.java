@@ -13,4 +13,6 @@ public interface InvoiceRepo extends JpaRepository<Invoice, Long> {
     Optional<Invoice> findByIdAndCompanyId(Long id, Long companyId);
 
     List<Invoice> findAllByCompanyIdOrderByTxnDateDesc(Long companyId);
+
+    List<Invoice> findAllByCompanyIdAndCustomer_Id(Long companyId, Long customerId);
 }

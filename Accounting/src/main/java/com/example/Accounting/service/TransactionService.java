@@ -22,8 +22,6 @@ public class TransactionService {
     public Page<Transaction> filter(TransactionFilter filter, int page, int size) {
         Sort sort = Sort.by("txnDate").descending();
 
-        log.info("filter service");
-
         if (filter.getSortBy() != null) {
             Sort.Direction direction = "desc".equalsIgnoreCase(filter.getSortDirection()) ?
                     Sort.Direction.DESC : Sort.Direction.ASC;

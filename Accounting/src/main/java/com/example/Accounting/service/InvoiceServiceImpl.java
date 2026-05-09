@@ -1,19 +1,25 @@
 package com.example.Accounting.service;
 
 import com.example.Accounting.constant.ErrorCode;
+import com.example.Accounting.exception.AccountNotFoundException;
 import com.example.Accounting.exception.AccountingException;
 import com.example.Accounting.mapper.InvoiceMapper;
 import com.example.Accounting.model.*;
 import com.example.Accounting.repo.*;
+import com.example.Accounting.request.AccountReq;
 import com.example.Accounting.request.InvoiceReq;
 import com.example.Accounting.security.SecurityUtils;
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 
+@Slf4j
 @Service
 @AllArgsConstructor
 public class InvoiceServiceImpl implements InvoiceService {
@@ -25,9 +31,10 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final JournalEntryRepo journalEntryRepo;
     private final JournalEntryLineRepo journalEntryLineRepo;
     private final CompanyRepo companyRepo;
+    private final AccountService accountService;
 
     @Override
-    public Invoice createInvoice(InvoiceReq req) {
+    public Invoice createInvoice(InvoiceReq req) throws AccountNotFoundException {
         Long companyId = SecurityUtils.requireCompanyId();
         Company company = companyRepo.getReferenceById(companyId);
 
@@ -42,10 +49,12 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoiceRepo.save(invoice);
         var total = invoice.getTotalAmt();
 
-        //get accounts
-        //todo : handle account not found
-        Account arAccount = accountRepo.findAccountByName("Accounts Receivable");
-        Account salesAccount = accountRepo.findAccountByName("Sales");
+        Account arAccount = accountRepo
+                .findByNameAndCompanyId("Accounts Receivable", companyId)
+                .orElse(accountService.createAccount(new AccountReq("Accounts Receivable", AccountType.ASSET, null)));
+        Account salesAccount = accountRepo
+                .findByNameAndCompanyId("Sales", companyId)
+                .orElse(accountService.createAccount(new AccountReq("Sales", AccountType.REVENUE, null)));
 
         //create journal lines (match invoice line totals, not a separate req field)
         JournalLine debitLine = journalEntryService.createJournalLine(arAccount, true, total, 1, null);
@@ -70,26 +79,27 @@ public class InvoiceServiceImpl implements InvoiceService {
         return invoice;
     }
 
-    @Override
-    public Invoice getInvoiceById(Long id) {
-        Long companyId = SecurityUtils.requireCompanyId();
-        return invoiceRepo.findByIdAndCompanyId(id, companyId)
-                .orElseThrow(() -> new AccountingException(ErrorCode.INVOICE_NOT_FOUND));
-    }
+//    @Override
+//    public Invoice getInvoiceById(Long id) {
+//        Long companyId = SecurityUtils.requireCompanyId();
+//        return invoiceRepo.findByIdAndCompanyId(id, companyId)
+//                .orElseThrow(() -> new AccountingException(ErrorCode.INVOICE_NOT_FOUND));
+//    }
 
-    @Override
-    public List<Invoice> listInvoicesForCurrentCompany() {
-        return invoiceRepo.findAllByCompanyIdOrderByTxnDateDesc(SecurityUtils.requireCompanyId());
-    }
-
-    @Override
-    public List<Invoice> getInvoicesByCustomerId(Long customerId) {
-        return List.of();
-    }
+//    @Override
+//    public List<Invoice> listInvoicesForCurrentCompany() {
+//        return invoiceRepo.findAllByCompanyIdOrderByTxnDateDesc(SecurityUtils.requireCompanyId());
+//    }
+//
+//    @Override
+//    public List<Invoice> getInvoicesByCustomerId(Long customerId) {
+//        Long companyId = SecurityUtils.requireCompanyId();
+//        List<Invoice> invoices = invoiceRepo.findAllByCompanyIdAndCustomer_Id(companyId, customerId);
+//        return List.of();
+//    }
 
     @Override
     public Invoice updateInvoice(Long id, InvoiceReq invoiceReq) {
-
         return null;
     }
 

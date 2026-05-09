@@ -1,5 +1,6 @@
 package com.example.Accounting.controller;
 
+import com.example.Accounting.exception.AccountNotFoundException;
 import com.example.Accounting.model.Invoice;
 import com.example.Accounting.request.InvoiceReq;
 import com.example.Accounting.service.InvoiceService;
@@ -24,7 +25,7 @@ public class InvoiceController {
     }
 
     @PostMapping
-    public ResponseEntity<Invoice> addInvoice(@RequestBody InvoiceReq req) {
+    public ResponseEntity<Invoice> addInvoice(@RequestBody InvoiceReq req) throws AccountNotFoundException {
         Invoice invoice = invoiceService.createInvoice(req);
         return new ResponseEntity<>(invoice, HttpStatus.CREATED);
     }

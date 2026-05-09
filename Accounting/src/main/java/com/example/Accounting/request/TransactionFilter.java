@@ -11,6 +11,7 @@ public class TransactionFilter {
     private String docNumber;
     private Long personId;
     private TransactionStatus status;
-    private String sortBy; //person, txnDate
+    private String sortBy; //person, txnDate, status
     private String sortDirection; //asc, desc
+    private String type; //invoice, bill, payment
 }
