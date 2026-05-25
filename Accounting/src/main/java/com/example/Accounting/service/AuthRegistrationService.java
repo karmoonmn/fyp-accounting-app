@@ -24,6 +24,7 @@ public class AuthRegistrationService {
 
     private final CompanyRepo companyRepo;
     private final UserRepo userRepo;
+    private final com.example.Accounting.repo.AccountRepo accountRepo;
 
     @Transactional
     public Company registerCompany(RegisterCompanyRequest body, String idToken) {
@@ -51,6 +52,66 @@ public class AuthRegistrationService {
         admin.setAddr(body.getCompanyAddr());
         admin.setCompany(company);
         userRepo.save(admin);
+
+        // Create default accounts (COA Seed Data)
+        com.example.Accounting.model.Account bankAccount = new com.example.Accounting.model.Account();
+        bankAccount.setName("Bank");
+        bankAccount.setAccountType(com.example.Accounting.model.AccountType.ASSET);
+        bankAccount.setAccountCode("1001");
+        bankAccount.setCompany(company);
+        bankAccount = accountRepo.save(bankAccount);
+
+        com.example.Accounting.model.Account arAccount = new com.example.Accounting.model.Account();
+        arAccount.setName("Accounts Receivable");
+        arAccount.setAccountType(com.example.Accounting.model.AccountType.ASSET);
+        arAccount.setAccountCode("1002");
+        arAccount.setCompany(company);
+        accountRepo.save(arAccount);
+
+        com.example.Accounting.model.Account apAccount = new com.example.Accounting.model.Account();
+        apAccount.setName("Accounts Payable");
+        apAccount.setAccountType(com.example.Accounting.model.AccountType.LIABILITY);
+        apAccount.setAccountCode("2001");
+        apAccount.setCompany(company);
+        accountRepo.save(apAccount);
+
+        com.example.Accounting.model.Account equityAccount = new com.example.Accounting.model.Account();
+        equityAccount.setName("Owner's Equity");
+        equityAccount.setAccountType(com.example.Accounting.model.AccountType.EQUITY);
+        equityAccount.setAccountCode("3001");
+        equityAccount.setCompany(company);
+        accountRepo.save(equityAccount);
+
+        com.example.Accounting.model.Account salesAccount = new com.example.Accounting.model.Account();
+        salesAccount.setName("Sales");
+        salesAccount.setAccountType(com.example.Accounting.model.AccountType.REVENUE);
+        salesAccount.setAccountCode("4001");
+        salesAccount.setCompany(company);
+        accountRepo.save(salesAccount);
+        
+        com.example.Accounting.model.Account operatingExpense = new com.example.Accounting.model.Account();
+        operatingExpense.setName("Operating Expense");
+        operatingExpense.setAccountType(com.example.Accounting.model.AccountType.EXPENSE);
+        operatingExpense.setAccountCode("5000");
+        operatingExpense.setCompany(company);
+        operatingExpense = accountRepo.save(operatingExpense);
+        
+        com.example.Accounting.model.Account travelExpense = new com.example.Accounting.model.Account();
+        travelExpense.setName("Travel Expense");
+        travelExpense.setAccountType(com.example.Accounting.model.AccountType.EXPENSE);
+        travelExpense.setAccountCode("5001");
+        travelExpense.setCompany(company);
+        travelExpense.setParent(operatingExpense);
+        accountRepo.save(travelExpense);
+        
+        com.example.Accounting.model.Account officeExpense = new com.example.Accounting.model.Account();
+        officeExpense.setName("Office Expense");
+        officeExpense.setAccountType(com.example.Accounting.model.AccountType.EXPENSE);
+        officeExpense.setAccountCode("5002");
+        officeExpense.setCompany(company);
+        officeExpense.setParent(operatingExpense);
+        accountRepo.save(officeExpense);
+
         return company;
     }
 

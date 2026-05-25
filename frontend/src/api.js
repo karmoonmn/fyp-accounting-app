@@ -9,18 +9,27 @@ function parseJsonSafe(text) {
   }
 }
 
+let currentCompanyId = null
+export function setGlobalCompanyId(id) {
+  currentCompanyId = id
+}
+
 /**
  * @param {string} path
- * @param {{ method?: string, body?: object, token?: string | null }} [opts]
+ * @param {{ method?: string, body?: object, token?: string | null, companyId?: string | number | null }} [opts]
  */
 export async function api(path, opts = {}) {
-  const { method = 'GET', body, token } = opts
+  const { method = 'GET', body, token, companyId } = opts
   const headers = { Accept: 'application/json' }
   if (body !== undefined) {
     headers['Content-Type'] = 'application/json'
   }
   if (token) {
     headers.Authorization = `Bearer ${token}`
+  }
+  const finalCompanyId = companyId || currentCompanyId
+  if (finalCompanyId) {
+    headers['X-Company-Id'] = String(finalCompanyId)
   }
   const res = await fetch(`${API_BASE}${path}`, {
     method,

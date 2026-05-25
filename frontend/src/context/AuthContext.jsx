@@ -16,7 +16,7 @@ import {
   signOut as firebaseSignOut,
 } from 'firebase/auth'
 import { auth } from '../firebase'
-import { api } from '../api'
+import { api, setGlobalCompanyId } from '../api'
 
 const AuthContext = createContext(null)
 
@@ -31,14 +31,17 @@ export function AuthProvider({ children }) {
     if (!token) {
       setMe(null)
       setMeError(null)
+      setGlobalCompanyId(null)
       return
     }
     try {
       setMeError(null)
       const profile = await api('/auth/me', { token })
       setMe(profile)
+      setGlobalCompanyId(profile.companyId)
     } catch (e) {
       setMe(null)
+      setGlobalCompanyId(null)
       setMeError(e instanceof Error ? e.message : String(e))
     }
   }, [])

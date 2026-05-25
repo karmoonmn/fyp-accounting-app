@@ -1,6 +1,8 @@
-import React, { useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import React, { useMemo, useState, useEffect } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { HiOutlinePlus, HiOutlineTrash, HiOutlineXMark } from 'react-icons/hi2'
+import CustomSelect from '../components/CustomSelect'
+import FormSkeleton from '../components/FormSkeleton'
 import { api } from '../api'
 import { useAuth } from '../context/AuthContext'
 
@@ -20,6 +22,9 @@ function emptyLine(num) {
 export default function CreateInvoice() {
   const { me, meError, getFreshToken } = useAuth()
   const navigate = useNavigate()
+  const { id } = useParams()
+  const isEdit = !!id
+
   const [docNumber, setDocNumber] = useState('')
   const [txnDate, setTxnDate] = useState(todayISO())
   const [customerId, setCustomerId] = useState('')
@@ -29,7 +34,70 @@ export default function CreateInvoice() {
   const [lines, setLines] = useState([emptyLine(1), emptyLine(2)])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
   const [sendLater, setSendLater] = useState(false)
+  const [customers, setCustomers] = useState([])
+  const [balance, setBalance] = useState(0)
+  const [paymentsAllocations, setPaymentsAllocations] = useState([])
+
+  useEffect(() => {
+    if (!me || meError) return
+    let cancelled = false
+    ;(async () => {
+      setBusy(true)
+      try {
+        const token = await getFreshToken()
+        if (!token || cancelled) return
+        
+        const [customersData, invoiceData] = await Promise.all([
+          api('/customer', { token }).catch(() => []),
+          isEdit ? api(`/invoice/${id}`, { token }) : Promise.resolve(null)
+        ])
+        
+        if (!cancelled) {
+          setCustomers(customersData || [])
+          if (invoiceData) {
+            setDocNumber(invoiceData.docNumber || '')
+            setTxnDate(invoiceData.txnDate || todayISO())
+            setCustomerId(invoiceData.customer ? invoiceData.customer.id.toString() : '')
+            setShipAddr(invoiceData.shipAddr || '')
+            setShipDate(invoiceData.shipDate || '')
+            setDueDate(invoiceData.dueDate || '')
+            if (invoiceData.lines && invoiceData.lines.length > 0) {
+              setLines(
+                invoiceData.lines.map((l) => ({
+                  lineNum: l.lineNum,
+                  description: l.description || '',
+                  quantity: l.quantity != null ? l.quantity.toString() : '1',
+                  unitPrice: l.unitPrice != null ? l.unitPrice.toString() : '0',
+                })),
+              )
+            }
+            if (invoiceData.balance != null) {
+              setBalance(Number.parseFloat(invoiceData.balance))
+            } else {
+              setBalance(Number.parseFloat(invoiceData.totalAmt) || 0)
+            }
+            if (invoiceData.payments && invoiceData.payments.length > 0) {
+              setPaymentsAllocations(invoiceData.payments)
+            }
+          }
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Could not fetch details')
+        }
+      } finally {
+        if (!cancelled) {
+          setBusy(false)
+          setInitialLoading(false)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [id, isEdit, me, meError, getFreshToken])
 
   const lineTotal = useMemo(() => {
     return lines.reduce((sum, row) => {
@@ -38,6 +106,8 @@ export default function CreateInvoice() {
       return sum + q * p
     }, 0)
   }, [lines])
+
+  const displayBalance = isEdit ? balance : lineTotal
 
   function updateLine(index, patch) {
     setLines((prev) =>
@@ -95,14 +165,16 @@ export default function CreateInvoice() {
         body.customerId = cid
       }
       if (!body.docNumber) throw new Error('Document number is required')
-      const created = await api('/invoice', {
-        method: 'POST',
+      const url = isEdit ? `/invoice/${id}` : '/invoice'
+      const method = isEdit ? 'PUT' : 'POST'
+      const created = await api(url, {
+        method,
         token,
         body,
       })
-      navigate('/', { replace: false, state: { createdInvoiceId: created.id } })
+      navigate('/invoices', { replace: false, state: { createdInvoiceId: created.id } })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not create invoice')
+      setError(err instanceof Error ? err.message : `Could not ${isEdit ? 'update' : 'create'} invoice`)
     } finally {
       setBusy(false)
     }
@@ -117,7 +189,7 @@ export default function CreateInvoice() {
       <div className="flex items-center justify-between border-b border-[#E5E7EB] bg-[#F9FAFB] px-6 py-4">
         <div className="min-w-0">
           <h2 className="truncate text-[18px] font-bold text-[#111827]">
-            Invoice {docNumber?.trim() ? `no.${docNumber.trim()}` : ''}
+            {isEdit ? 'Edit Invoice' : 'Invoice'} {docNumber?.trim() ? `no.${docNumber.trim()}` : ''}
           </h2>
         </div>
         <div className="flex items-center gap-3">
@@ -157,16 +229,30 @@ export default function CreateInvoice() {
               </Link>
             </div>
           </div>
+        ) : initialLoading ? (
+          <FormSkeleton />
         ) : (
           <form id="create-invoice-form" onSubmit={handleSubmit} className="space-y-6">
               <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
                 <div className="grid grid-cols-3 gap-4">
                   <label className="text-[12px] font-bold text-[#6B7280]">
                     Customer
-                    <input
-                      type="text"
+                    <CustomSelect
+                      value={customerId}
+                      onChange={(val) => {
+                        setCustomerId(val)
+                        const c = customers.find((x) => x.id.toString() === String(val))
+                        if (c) {
+                          if (c.addr) setShipAddr(c.addr)
+                        }
+                      }}
+                      options={[
+                        { value: '', label: 'Select a customer' },
+                        ...customers.map((c) => ({ value: c.id, label: c.name }))
+                      ]}
                       placeholder="Select a customer"
-                      className="mt-1 h-10 w-full rounded-xl border border-[#E5E7EB] bg-white px-3 text-[13px] font-medium text-[#111827] placeholder-[#9CA3AF] focus:border-[#0F766E] focus:outline-none"
+                      className="mt-1"
+                      buttonClassName="h-10"
                     />
                   </label>
                   <label className="text-[12px] font-bold text-[#6B7280]">
@@ -189,7 +275,9 @@ export default function CreateInvoice() {
                   <div className="flex items-start justify-end">
                     <div className="text-right">
                       <p className="text-[11px] font-bold uppercase tracking-wide text-[#6B7280]">Balance due</p>
-                      <p className="mt-1 text-[28px] font-bold tabular-nums text-[#111827]">S$0.00</p>
+                      <p className="mt-1 text-[28px] font-bold tabular-nums text-[#111827]">
+                        S${displayBalance.toFixed(2)}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -243,17 +331,7 @@ export default function CreateInvoice() {
                       className="mt-1 h-10 w-full rounded-xl border border-[#E5E7EB] bg-white px-3 text-[13px] font-medium text-[#111827] placeholder-[#9CA3AF] focus:border-[#0F766E] focus:outline-none"
                     />
                   </label>
-                  <label className="col-span-1 text-[12px] font-bold text-[#6B7280]">
-                    Customer ID (optional)
-                    <input
-                      type="number"
-                      min={1}
-                      value={customerId}
-                      onChange={(e) => setCustomerId(e.target.value)}
-                      placeholder="Optional"
-                      className="mt-1 h-10 w-full rounded-xl border border-[#E5E7EB] bg-white px-3 text-[13px] font-medium text-[#111827] placeholder-[#9CA3AF] focus:border-[#0F766E] focus:outline-none"
-                    />
-                  </label>
+                  <div className="col-span-1" />
                   <label className="col-span-2 text-[12px] font-bold text-[#6B7280]">
                     Ship-to address (optional)
                     <input
@@ -358,6 +436,52 @@ export default function CreateInvoice() {
                 ) : null}
               </div>
 
+              {isEdit && paymentsAllocations.length > 0 && (
+                <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
+                  <h3 className="text-[#111827] text-[16px] font-bold">Payments Received</h3>
+                  <div className="mt-4 overflow-x-auto rounded-xl border border-[#E5E7EB]">
+                    <table className="w-full min-w-[600px] border-collapse text-left text-[13px]">
+                      <thead>
+                        <tr className="border-b border-[#E5E7EB] bg-[#FAFAFA] text-[11px] font-bold uppercase tracking-wide text-[#6B7280]">
+                          <th className="px-4 py-3">Date</th>
+                          <th className="px-4 py-3">Reference No.</th>
+                          <th className="px-4 py-3">Deposit To</th>
+                          <th className="px-4 py-3 text-right">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paymentsAllocations.map((alloc, idx) => (
+                          <tr key={alloc.id || idx} className={idx % 2 === 1 ? 'bg-[#F9FAFB]/80' : 'bg-white'}>
+                            <td className="border-b border-[#F3F4F6] px-4 py-3 font-medium text-[#111827]">
+                              {alloc.payment?.txnDate || '—'}
+                            </td>
+                            <td className="border-b border-[#F3F4F6] px-4 py-3 font-semibold text-[#0F766E]">
+                              {alloc.payment?.id ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.preventDefault(); navigate(`/payment/edit/${alloc.payment.id}`); }}
+                                  className="hover:underline"
+                                >
+                                  {alloc.payment?.docNumber || '—'}
+                                </button>
+                              ) : (
+                                alloc.payment?.docNumber || '—'
+                              )}
+                            </td>
+                            <td className="border-b border-[#F3F4F6] px-4 py-3 text-[#64748B]">
+                              {alloc.payment?.depositTo || 'Bank'}
+                            </td>
+                            <td className="border-b border-[#F3F4F6] px-4 py-3 text-right font-bold tabular-nums text-[#111827]">
+                              {Number.parseFloat(alloc.amount || 0).toFixed(2)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
               <div className="flex justify-end">
                 <div className="w-full max-w-[420px] space-y-2 text-[13px]">
                   <div className="flex items-center justify-between">
@@ -366,7 +490,7 @@ export default function CreateInvoice() {
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-[#64748B]">Balance due</span>
-                    <span className="font-bold tabular-nums text-[#111827]">{lineTotal.toFixed(2)}</span>
+                    <span className="font-bold tabular-nums text-[#111827]">{displayBalance.toFixed(2)}</span>
                   </div>
                 </div>
               </div>
@@ -404,7 +528,7 @@ export default function CreateInvoice() {
               disabled={busy}
               className="inline-flex h-10 items-center justify-center rounded-xl bg-[#0F766E] px-5 text-[14px] font-bold text-white hover:bg-[#0F766E]/90 disabled:opacity-60"
             >
-              {busy ? 'Saving…' : 'Save'}
+              {busy ? 'Saving…' : (isEdit ? 'Update' : 'Save')}
             </button>
             <button
               type="submit"
@@ -412,7 +536,7 @@ export default function CreateInvoice() {
               disabled={busy || sendLater}
               className="inline-flex h-10 items-center justify-center rounded-xl bg-[#0F766E] px-5 text-[14px] font-bold text-white hover:bg-[#0F766E]/90 disabled:opacity-60"
             >
-              {busy ? 'Saving…' : 'Save and send'}
+              {busy ? 'Saving…' : (isEdit ? 'Update and send' : 'Save and send')}
             </button>
           </div>
         </div>

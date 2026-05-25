@@ -13,6 +13,8 @@ import {
   HiOutlineQuestionMarkCircle,
   HiOutlineReceiptPercent,
   HiOutlineSparkles,
+  HiOutlineUsers,
+  HiOutlineBookOpen,
 } from 'react-icons/hi2'
 import { useAuth } from '../context/AuthContext'
 import FloatingAiChat from './FloatingAiChat'
@@ -28,6 +30,8 @@ export default function DashboardLayout({ children, activeNav = 'dashboard' }) {
   const { firebaseUser, loading, me, meError, signOut } = useAuth()
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false)
 
+  const [expandedNav, setExpandedNav] = React.useState({ invoices: true })
+
   const navItems = [
     { key: 'dashboard', icon: HiOutlineHome, label: 'Dashboard', onClick: () => navigate('/') },
     {
@@ -36,10 +40,34 @@ export default function DashboardLayout({ children, activeNav = 'dashboard' }) {
       label: 'Analytics',
       onClick: () => navigate('/analytics'),
     },
-    { key: 'bills', icon: HiOutlineReceiptPercent, label: 'Bills', onClick: () => navigate('/bills') },
-    { key: 'invoices', icon: HiOutlineDocumentText, label: 'Invoices', onClick: () => navigate('/invoices') },
+    { 
+      key: 'bills', 
+      icon: HiOutlineReceiptPercent, 
+      label: 'Bills', 
+      onClick: () => {
+        navigate('/bills')
+        setExpandedNav(prev => ({ ...prev, bills: true }))
+      },
+      subItems: [
+        { key: 'suppliers', label: 'Suppliers', onClick: () => navigate('/suppliers') },
+      ]
+    },
+    { 
+      key: 'invoices', 
+      icon: HiOutlineDocumentText, 
+      label: 'Invoices', 
+      onClick: () => {
+        navigate('/invoices')
+        setExpandedNav(prev => ({ ...prev, invoices: true }))
+      },
+      subItems: [
+        { key: 'customers', label: 'Customers', onClick: () => navigate('/customers') },
+        { key: 'payments', label: 'Payments', onClick: () => navigate('/payments') },
+      ]
+    },
     { key: 'reports', icon: HiOutlineChartBar, label: 'Reports', onClick: () => {} },
     { key: 'bank', icon: HiOutlineCreditCard, label: 'Bank Account', onClick: () => navigate('/bank') },
+    { key: 'accounts', icon: HiOutlineBookOpen, label: 'Chart of Accounts', onClick: () => navigate('/accounts') },
     { key: 'quick', icon: HiOutlineSparkles, label: 'Quick Action', onClick: () => navigate('/quick') },
   ]
 
@@ -102,30 +130,59 @@ export default function DashboardLayout({ children, activeNav = 'dashboard' }) {
           <div className="flex flex-col gap-1">
             {navItems.map((item) => (
               <div key={item.key} className="relative group">
-                <button
-                  type="button"
-                  onClick={item.onClick}
-                  className={`w-full flex items-center gap-3 rounded-lg cursor-pointer transition-all ${
-                    sidebarCollapsed ? 'justify-center min-h-[48px]' : 'px-5 py-3'
-                  } ${
-                    item.key === activeNav
-                      ? 'bg-[#CCFBF1]'
-                      : 'hover:bg-[#F9FAFB]'
-                  }`}
-                >
-                  <item.icon
-                    className={`w-5 h-5 ${item.key === activeNav ? 'text-[#0F766E]' : 'text-[#111827]'}`}
-                  />
-                  {!sidebarCollapsed && (
-                    <span
-                      className={`text-[15px] font-semibold flex-1 text-left ${
-                        item.key === activeNav ? 'text-[#0F766E]' : 'text-[#111827]'
-                      }`}
-                    >
-                      {item.label}
-                    </span>
+                <div className="flex flex-col">
+                  <button
+                    type="button"
+                    onClick={item.onClick}
+                    className={`w-full flex items-center gap-3 rounded-lg cursor-pointer transition-all ${
+                      sidebarCollapsed ? 'justify-center min-h-[48px]' : 'px-5 py-3'
+                    } ${
+                      item.key === activeNav
+                        ? 'bg-[#CCFBF1]'
+                        : 'hover:bg-[#F9FAFB]'
+                    }`}
+                  >
+                    <item.icon
+                      className={`w-5 h-5 ${item.key === activeNav ? 'text-[#0F766E]' : 'text-[#111827]'}`}
+                    />
+                    {!sidebarCollapsed && (
+                      <>
+                        <span
+                          className={`text-[15px] font-semibold flex-1 text-left ${
+                            item.key === activeNav ? 'text-[#0F766E]' : 'text-[#111827]'
+                          }`}
+                        >
+                          {item.label}
+                        </span>
+                        {item.subItems && (
+                          <HiOutlineChevronDown
+                            className={`w-4 h-4 text-[#6B7280] transition-transform ${
+                              expandedNav[item.key] ? 'rotate-180' : ''
+                            }`}
+                          />
+                        )}
+                      </>
+                    )}
+                  </button>
+                  {item.subItems && expandedNav[item.key] && !sidebarCollapsed && (
+                    <div className="flex flex-col ml-9 mt-1 gap-1">
+                      {item.subItems.map(sub => (
+                        <button
+                          key={sub.key}
+                          type="button"
+                          onClick={sub.onClick}
+                          className={`text-left w-full px-3 py-2 text-[14px] font-medium rounded-lg transition-all ${
+                            sub.key === activeNav
+                              ? 'text-[#0F766E] bg-[#CCFBF1]/50'
+                              : 'text-[#6B7280] hover:text-[#111827] hover:bg-[#F9FAFB]'
+                          }`}
+                        >
+                          {sub.label}
+                        </button>
+                      ))}
+                    </div>
                   )}
-                </button>
+                </div>
                 {sidebarCollapsed && (
                   <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-[#374151] text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity z-50">
                     {item.label}

@@ -1,5 +1,7 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { api } from '../api'
+import { useAuth } from '../context/AuthContext'
 import {
   HiOutlineArrowUpTray,
   HiOutlineArrowsUpDown,
@@ -109,13 +111,98 @@ function SelectShell({ label, value }) {
 
 export default function InvoiceList() {
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = React.useState('All sales')
-  const [selected, setSelected] = React.useState(() => new Set())
+  const { me, meError, getFreshToken } = useAuth()
+  const [activeTab, setActiveTab] = useState('All sales')
+  const [selected, setSelected] = useState(() => new Set())
+  const [invoices, setInvoices] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [searchText, setSearchText] = useState('')
 
-  const totalAmount = DEMO_ROWS.reduce((s, r) => s + r.amount, 0)
-  const pageStart = 1
-  const pageEnd = DEMO_ROWS.length
-  const totalCount = DEMO_ROWS.length
+  useEffect(() => {
+    if (!me || meError) return
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      try {
+        const token = await getFreshToken()
+        if (!token || cancelled) return
+        const data = await api('/invoice', { token })
+        if (!cancelled) {
+          setInvoices(data || [])
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Could not fetch invoices')
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [me, meError, getFreshToken])
+
+  async function handleDelete(id) {
+    if (!window.confirm('Are you sure you want to delete this invoice?')) return
+    try {
+      const token = await getFreshToken()
+      if (!token) return
+      await api(`/invoice/${id}`, { method: 'DELETE', token })
+      setInvoices((prev) => prev.filter((inv) => inv.id.toString() !== id.toString()))
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not delete invoice')
+    }
+  }
+
+  function getInvoiceStatus(inv) {
+    const balance = Number.parseFloat(inv.balance) || 0
+    const total = Number.parseFloat(inv.totalAmt) || 0
+    if (balance <= 0 && total > 0) {
+      return { kind: 'closed', label: 'Paid' }
+    }
+    if (inv.dueDate) {
+      const today = new Date().setHours(0, 0, 0, 0)
+      const due = new Date(inv.dueDate).setHours(0, 0, 0, 0)
+      if (due < today) {
+        return { kind: 'overdue', label: 'Overdue' }
+      }
+    }
+    if (balance < total && balance > 0) {
+      return { kind: 'due', label: 'Partially Paid' }
+    }
+    return { kind: 'due', label: 'Open' }
+  }
+
+  const rows = invoices.map((inv) => ({
+    id: inv.id.toString(),
+    date: inv.txnDate || '—',
+    type: 'Invoice',
+    no: inv.docNumber || '—',
+    customer: inv.customer ? inv.customer.name : '—',
+    memo: inv.shipAddr || '',
+    amount: Number.parseFloat(inv.totalAmt) || 0,
+    status: getInvoiceStatus(inv),
+    actions: 'invoice',
+  }))
+
+  const filteredRows = rows.filter((row) => {
+    const q = searchText.trim().toLowerCase()
+    if (!q) return true
+    return (
+      row.customer.toLowerCase().includes(q) ||
+      row.no.toLowerCase().includes(q) ||
+      row.memo.toLowerCase().includes(q)
+    )
+  })
+
+  const totalAmount = filteredRows.reduce((s, r) => s + r.amount, 0)
+  const pageStart = filteredRows.length > 0 ? 1 : 0
+  const pageEnd = filteredRows.length
+  const totalCount = filteredRows.length
 
   function toggleRow(id) {
     setSelected((prev) => {
@@ -127,8 +214,8 @@ export default function InvoiceList() {
   }
 
   function toggleAll() {
-    if (selected.size === DEMO_ROWS.length) setSelected(new Set())
-    else setSelected(new Set(DEMO_ROWS.map((r) => r.id)))
+    if (selected.size === filteredRows.length) setSelected(new Set())
+    else setSelected(new Set(filteredRows.map((r) => r.id)))
   }
 
   return (
@@ -174,6 +261,8 @@ export default function InvoiceList() {
                 <input
                   type="search"
                   placeholder="Customer"
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
                   className="h-10 w-[220px] rounded-xl border border-[#E5E7EB] bg-white pl-9 pr-3 text-[13px] text-[#111827] placeholder-[#9CA3AF] focus:border-[#0F766E] focus:outline-none"
                 />
               </div>
@@ -233,7 +322,7 @@ export default function InvoiceList() {
                     <input
                       type="checkbox"
                       className="h-4 w-4 rounded border border-[#D1D5DB] bg-white accent-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/30"
-                      checked={selected.size === DEMO_ROWS.length && DEMO_ROWS.length > 0}
+                      checked={selected.size === filteredRows.length && filteredRows.length > 0}
                       onChange={toggleAll}
                     />
                   </th>
@@ -253,35 +342,64 @@ export default function InvoiceList() {
                 </tr>
               </thead>
               <tbody>
-                {DEMO_ROWS.map((row, i) => (
-                  <tr
-                    key={row.id}
-                    className={`border-b border-[#F3F4F6] ${i % 2 === 1 ? 'bg-[#F9FAFB]/80' : 'bg-white'}`}
-                  >
-                    <td className="py-3 pr-2 align-middle">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 rounded border border-[#D1D5DB] bg-white accent-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/30"
-                        checked={selected.has(row.id)}
-                        onChange={() => toggleRow(row.id)}
-                      />
+                {loading ? (
+                  <tr>
+                    <td colSpan={9} className="py-8 text-center text-[13px] font-semibold text-[#64748B]">
+                      Loading invoices...
                     </td>
-                    <td className="py-3 pr-4 align-middle font-medium text-[#111827]">{row.date}</td>
-                    <td className="py-3 pr-4 align-middle text-[#374151]">{row.type}</td>
-                    <td className="py-3 pr-4 align-middle font-semibold text-[#0F766E]">{row.no}</td>
-                    <td className="py-3 pr-4 align-middle text-[#111827]">{row.customer}</td>
-                    <td className="py-3 pr-4 align-middle text-[#9CA3AF]">{row.memo || '—'}</td>
-                    <td className="py-3 pr-4 align-middle text-right font-semibold tabular-nums text-[#111827]">
-                      {formatMoney(row.amount)}
+                  </tr>
+                ) : error ? (
+                  <tr>
+                    <td colSpan={9} className="py-8 text-center text-[13px] font-semibold text-[#B91C1C]">
+                      {error}
                     </td>
-                    <td className="py-3 pr-4 align-middle">
-                      <StatusCell status={row.status} />
+                  </tr>
+                ) : filteredRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="py-8 text-center text-[13px] font-semibold text-[#64748B]">
+                      No invoices found.
                     </td>
-                    <td className="py-3 align-middle">
-                      {row.actions === 'invoice' ? (
+                  </tr>
+                ) : (
+                  filteredRows.map((row, i) => (
+                    <tr
+                      key={row.id}
+                      className={`border-b border-[#F3F4F6] ${i % 2 === 1 ? 'bg-[#F9FAFB]/80' : 'bg-white'}`}
+                    >
+                      <td className="py-3 pr-2 align-middle">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border border-[#D1D5DB] bg-white accent-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/30"
+                          checked={selected.has(row.id)}
+                          onChange={() => toggleRow(row.id)}
+                        />
+                      </td>
+                      <td className="py-3 pr-4 align-middle font-medium text-[#111827]">{row.date}</td>
+                      <td className="py-3 pr-4 align-middle text-[#374151]">{row.type}</td>
+                      <td className="py-3 pr-4 align-middle font-semibold text-[#0F766E]">{row.no}</td>
+                      <td className="py-3 pr-4 align-middle text-[#111827]">{row.customer}</td>
+                      <td className="py-3 pr-4 align-middle text-[#9CA3AF]">{row.memo || '—'}</td>
+                      <td className="py-3 pr-4 align-middle text-right font-semibold tabular-nums text-[#111827]">
+                        {formatMoney(row.amount)}
+                      </td>
+                      <td className="py-3 pr-4 align-middle">
+                        <StatusCell status={row.status} />
+                      </td>
+                      <td className="py-3 align-middle">
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                          <button type="button" className="font-semibold text-[#0F766E] hover:underline">
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/invoice/edit/${row.id}`)}
+                            className="font-semibold text-[#0F766E] hover:underline"
+                          >
                             View/Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(row.id)}
+                            className="font-semibold text-[#B91C1C] hover:underline"
+                          >
+                            Delete
                           </button>
                           <button
                             type="button"
@@ -292,18 +410,10 @@ export default function InvoiceList() {
                             <HiOutlineChevronDown className="h-3.5 w-3.5" />
                           </button>
                         </div>
-                      ) : (
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-0.5 font-semibold text-[#0F766E] hover:underline"
-                        >
-                          View/Edit
-                          <HiOutlineChevronDown className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
               <tfoot>
                 <tr className="border-t border-[#E5E7EB] bg-[#F3F4F6] text-[13px]">

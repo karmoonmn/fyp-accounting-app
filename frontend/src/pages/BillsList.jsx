@@ -11,6 +11,8 @@ import {
   HiOutlineCog6Tooth,
 } from 'react-icons/hi2'
 import DashboardLayout from '../components/DashboardLayout'
+import { useAuth } from '../context/AuthContext'
+import { api } from '../api'
 
 const TABS = [
   'Overview',
@@ -18,65 +20,6 @@ const TABS = [
   'Purchase orders',
   'Vendors',
   'Products & services',
-]
-
-/** Demo rows — replace with API when bills list endpoint exists */
-const DEMO_ROWS = [
-  {
-    id: '1',
-    date: '2024-03-12',
-    type: 'Bill',
-    no: 'BILL-2201',
-    vendor: 'Office Supplies Hub',
-    memo: 'Q1 stationery',
-    amount: 1842.3,
-    status: { kind: 'overdue', label: 'Overdue 5 days' },
-    actions: 'bill',
-  },
-  {
-    id: '2',
-    date: '2024-03-14',
-    type: 'Bill payment',
-    no: 'BPAY-044',
-    vendor: 'Utilities Co.',
-    memo: 'March electric',
-    amount: 960.0,
-    status: { kind: 'closed', label: 'Paid' },
-    actions: 'payment',
-  },
-  {
-    id: '3',
-    date: '2024-03-19',
-    type: 'Bill',
-    no: 'BILL-2202',
-    vendor: 'Northwind Freight',
-    memo: '',
-    amount: 4520.0,
-    status: { kind: 'due', label: 'Due in 6 days' },
-    actions: 'bill',
-  },
-  {
-    id: '4',
-    date: '2024-03-21',
-    type: 'Bill',
-    no: 'BILL-2203',
-    vendor: 'CloudHost Asia',
-    memo: 'Annual hosting',
-    amount: 2899.99,
-    status: { kind: 'open', label: 'Open' },
-    actions: 'bill',
-  },
-  {
-    id: '5',
-    date: '2024-03-24',
-    type: 'Bill',
-    no: 'BILL-2204',
-    vendor: 'Marketing Partners LLC',
-    memo: 'Campaign retainer',
-    amount: 6000.0,
-    status: { kind: 'partial', label: 'Partially paid' },
-    actions: 'bill',
-  },
 ]
 
 function formatMoney(n) {
@@ -139,13 +82,43 @@ function SelectShell({ label, value }) {
 
 export default function BillsList() {
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = React.useState('All bills')
+  const { me, meError, getFreshToken } = useAuth()
+  const [bills, setBills] = React.useState([])
+  const [loading, setLoading] = React.useState(false)
+  const [error, setError] = React.useState('')
   const [selected, setSelected] = React.useState(() => new Set())
 
-  const totalAmount = DEMO_ROWS.reduce((s, r) => s + r.amount, 0)
-  const pageStart = 1
-  const pageEnd = DEMO_ROWS.length
-  const totalCount = DEMO_ROWS.length
+  React.useEffect(() => {
+    if (!me || meError) return
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      try {
+        const token = await getFreshToken()
+        if (!token || cancelled) return
+        const data = await api('/bill', { token })
+        if (!cancelled) {
+          setBills(data || [])
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Could not fetch bills')
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [me, meError, getFreshToken])
+
+  const totalAmount = bills.reduce((s, r) => s + (r.totalAmt || 0), 0)
+  const pageStart = bills.length > 0 ? 1 : 0
+  const pageEnd = bills.length
+  const totalCount = bills.length
 
   function toggleRow(id) {
     setSelected((prev) => {
@@ -157,8 +130,26 @@ export default function BillsList() {
   }
 
   function toggleAll() {
-    if (selected.size === DEMO_ROWS.length) setSelected(new Set())
-    else setSelected(new Set(DEMO_ROWS.map((r) => r.id)))
+    if (selected.size === bills.length) setSelected(new Set())
+    else setSelected(new Set(bills.map((r) => r.id)))
+  }
+
+  function getStatusInfo(status) {
+    if (status === 'PAID') return { kind: 'closed', label: 'Paid' }
+    if (status === 'PARTIALLY_PAID') return { kind: 'partial', label: 'Partially paid' }
+    return { kind: 'open', label: 'Open' }
+  }
+
+  async function handleDelete(id) {
+    if (!window.confirm('Are you sure you want to delete this bill?')) return
+    try {
+      const token = await getFreshToken()
+      if (!token) return
+      await api(`/bill/${id}`, { method: 'DELETE', token })
+      setBills((prev) => prev.filter((b) => b.id.toString() !== id.toString()))
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not delete bill')
+    }
   }
 
   return (
@@ -263,7 +254,7 @@ export default function BillsList() {
                     <input
                       type="checkbox"
                       className="h-4 w-4 rounded border border-[#D1D5DB] bg-white accent-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/30"
-                      checked={selected.size === DEMO_ROWS.length && DEMO_ROWS.length > 0}
+                      checked={selected.size === bills.length && bills.length > 0}
                       onChange={toggleAll}
                     />
                   </th>
@@ -283,56 +274,77 @@ export default function BillsList() {
                 </tr>
               </thead>
               <tbody>
-                {DEMO_ROWS.map((row, i) => (
-                  <tr
-                    key={row.id}
-                    className={`border-b border-[#F3F4F6] ${i % 2 === 1 ? 'bg-[#F9FAFB]/80' : 'bg-white'}`}
-                  >
-                    <td className="py-3 pr-2 align-middle">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 rounded border border-[#D1D5DB] bg-white accent-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/30"
-                        checked={selected.has(row.id)}
-                        onChange={() => toggleRow(row.id)}
-                      />
+                {loading ? (
+                  <tr>
+                    <td colSpan={9} className="py-8 text-center text-[13px] font-semibold text-[#64748B]">
+                      Loading bills...
                     </td>
-                    <td className="py-3 pr-4 align-middle font-medium text-[#111827]">{row.date}</td>
-                    <td className="py-3 pr-4 align-middle text-[#374151]">{row.type}</td>
-                    <td className="py-3 pr-4 align-middle font-semibold text-[#0F766E]">{row.no}</td>
-                    <td className="py-3 pr-4 align-middle text-[#111827]">{row.vendor}</td>
-                    <td className="py-3 pr-4 align-middle text-[#9CA3AF]">{row.memo || '—'}</td>
-                    <td className="py-3 pr-4 align-middle text-right font-semibold tabular-nums text-[#111827]">
-                      {formatMoney(row.amount)}
+                  </tr>
+                ) : error ? (
+                  <tr>
+                    <td colSpan={9} className="py-8 text-center text-[13px] font-semibold text-[#B91C1C]">
+                      {error}
                     </td>
-                    <td className="py-3 pr-4 align-middle">
-                      <StatusCell status={row.status} />
+                  </tr>
+                ) : bills.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="py-8 text-center text-[13px] font-semibold text-[#64748B]">
+                      No bills found.
                     </td>
-                    <td className="py-3 align-middle">
-                      {row.actions === 'bill' ? (
+                  </tr>
+                ) : (
+                  bills.map((row, i) => (
+                    <tr
+                      key={row.id}
+                      className={`border-b border-[#F3F4F6] ${i % 2 === 1 ? 'bg-[#F9FAFB]/80' : 'bg-white'}`}
+                    >
+                      <td className="py-3 pr-2 align-middle">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border border-[#D1D5DB] bg-white accent-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/30"
+                          checked={selected.has(row.id)}
+                          onChange={() => toggleRow(row.id)}
+                        />
+                      </td>
+                      <td className="py-3 pr-4 align-middle font-medium text-[#111827]">{row.txnDate}</td>
+                      <td className="py-3 pr-4 align-middle text-[#374151]">Bill</td>
+                      <td className="py-3 pr-4 align-middle font-semibold text-[#0F766E]">{row.docNumber}</td>
+                      <td className="py-3 pr-4 align-middle text-[#111827]">{row.supplier?.name || '—'}</td>
+                      <td className="py-3 pr-4 align-middle text-[#9CA3AF]">{row.memo || '—'}</td>
+                      <td className="py-3 pr-4 align-middle text-right font-semibold tabular-nums text-[#111827]">
+                        {formatMoney(row.totalAmt || 0)}
+                      </td>
+                      <td className="py-3 pr-4 align-middle">
+                        <StatusCell status={getStatusInfo(row.status)} />
+                      </td>
+                      <td className="py-3 align-middle">
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                          <button type="button" className="font-semibold text-[#0F766E] hover:underline">
+                          <button 
+                            type="button" 
+                            onClick={() => navigate(`/bill/edit/${row.id}`)}
+                            className="font-semibold text-[#0F766E] hover:underline"
+                          >
                             View/Edit
                           </button>
                           <button
                             type="button"
+                            onClick={() => navigate('/bill/payment')}
                             className="inline-flex items-center gap-0.5 font-semibold text-[#0F766E] hover:underline"
                           >
                             Make payment
-                            <HiOutlineChevronDown className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(row.id)}
+                            className="font-semibold text-[#B91C1C] hover:underline ml-2"
+                          >
+                            Delete
                           </button>
                         </div>
-                      ) : (
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-0.5 font-semibold text-[#0F766E] hover:underline"
-                        >
-                          View/Edit
-                          <HiOutlineChevronDown className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
               <tfoot>
                 <tr className="border-t border-[#E5E7EB] bg-[#F3F4F6] text-[13px]">

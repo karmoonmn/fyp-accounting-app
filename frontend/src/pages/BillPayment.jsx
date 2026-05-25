@@ -1,15 +1,8 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { HiOutlineChevronDown, HiOutlineXMark } from 'react-icons/hi2'
-
-const DEMO_BILLS = [
-  { id: 'b1', no: 'Bill #1-077935', dueDate: '25.11.2025', original: 189.73, open: 189.73 },
-  { id: 'b2', no: 'Bill #1-077319', dueDate: '01.12.2025', original: 99.13, open: 99.13 },
-  { id: 'b3', no: 'Bill #1-077337', dueDate: '03.12.2025', original: 35.5, open: 35.5 },
-  { id: 'b4', no: 'Bill #1-077339', dueDate: '03.12.2025', original: 39.93, open: 39.93 },
-  { id: 'b5', no: 'Bill #1-077369', dueDate: '04.11.2025', original: 755.63, open: 755.63 },
-  { id: 'b6', no: 'Bill #1-077419', dueDate: '06.11.2025', original: 347.6, open: 347.6 },
-]
+import { api } from '../api'
+import { useAuth } from '../context/AuthContext'
 
 function formatRm(n) {
   return new Intl.NumberFormat('en-MY', {
@@ -19,23 +12,57 @@ function formatRm(n) {
   }).format(n)
 }
 
+function todayISO() {
+  return new Date().toISOString().slice(0, 10)
+}
+
 export default function BillPayment() {
   const navigate = useNavigate()
-  const [payee, setPayee] = React.useState('TCW EDGING SDN BHD')
-  const [email, setEmail] = React.useState('')
-  const [sendLater, setSendLater] = React.useState(false)
-  const [bankAccount, setBankAccount] = React.useState('Bank')
-  const [paymentDate, setPaymentDate] = React.useState('2026-05-04')
-  const [refNo, setRefNo] = React.useState('281013')
-  const [mailingAddress, setMailingAddress] = React.useState('TCW EDGING SDN BHD')
-  const [filter, setFilter] = React.useState('')
+  const { me, meError, getFreshToken } = useAuth()
+  const [payee, setPayee] = useState('')
+  const [email, setEmail] = useState('')
+  const [sendLater, setSendLater] = useState(false)
+  const [bankAccount, setBankAccount] = useState('Bank')
+  const [paymentDate, setPaymentDate] = useState(todayISO())
+  const [refNo, setRefNo] = useState('')
+  const [mailingAddress, setMailingAddress] = useState('')
+  const [filter, setFilter] = useState('')
+  
+  const [bills, setBills] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
 
-  const [selected, setSelected] = React.useState(() => new Set([DEMO_BILLS[0]?.id]))
-  const [payments, setPayments] = React.useState(() => ({
-    [DEMO_BILLS[0]?.id]: '96.00',
-  }))
+  const [selected, setSelected] = useState(() => new Set())
+  const [payments, setPayments] = useState({})
 
-  const amountPaid = DEMO_BILLS.reduce((sum, b) => {
+  useEffect(() => {
+    if (!me || meError) return
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      try {
+        const token = await getFreshToken()
+        if (!token || cancelled) return
+        const data = await api('/bill', { token })
+        if (!cancelled) {
+          const openBills = (data || []).filter((b) => (b.balance ?? b.totalAmt) > 0)
+          setBills(openBills)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Could not fetch bills')
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [me, meError, getFreshToken])
+
+  const amountPaid = bills.reduce((sum, b) => {
     if (!selected.has(b.id)) return sum
     const v = Number.parseFloat(payments[b.id] ?? '') || 0
     return sum + v
@@ -48,19 +75,68 @@ export default function BillPayment() {
   function toggleBill(id) {
     setSelected((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      if (next.has(id)) {
+        next.delete(id)
+        setPayments(p => ({ ...p, [id]: '' }))
+      } else {
+        next.add(id)
+        const b = bills.find(x => x.id === id)
+        if (b) {
+          setPayments(p => ({ ...p, [id]: (b.balance ?? b.totalAmt).toString() }))
+        }
+      }
       return next
     })
+  }
+
+  async function handleSubmit() {
+    setError('')
+    if (!me || meError) {
+      setError('Sign in to record payment.')
+      return
+    }
+    
+    const paymentItems = []
+    for (const id of selected) {
+      const amt = Number.parseFloat(payments[id])
+      if (amt > 0) {
+        paymentItems.push({
+          billId: id,
+          amount: amt
+        })
+      }
+    }
+    
+    if (paymentItems.length === 0) {
+      setError('Select at least one bill and enter a payment amount > 0.')
+      return
+    }
+    
+    setBusy(true)
+    try {
+      const token = await getFreshToken()
+      const payload = {
+        refNo: refNo || undefined,
+        paymentDate,
+        depositTo: bankAccount,
+        payments: paymentItems
+      }
+      await api('/bill/payment', { method: 'POST', token, body: payload })
+      navigate('/bills')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not submit payment')
+    } finally {
+      setBusy(false)
+    }
   }
 
   const checkboxClass =
     'h-4 w-4 rounded border border-[#D1D5DB] bg-white accent-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/30'
 
-  const visibleBills = DEMO_BILLS.filter((b) => {
+  const visibleBills = bills.filter((b) => {
     const q = filter.trim().toLowerCase()
     if (!q) return true
-    return b.no.toLowerCase().includes(q)
+    return (b.docNumber || '').toLowerCase().includes(q) || (b.supplier?.name || '').toLowerCase().includes(q)
   })
 
   return (
@@ -209,40 +285,61 @@ export default function BillPayment() {
                 </tr>
               </thead>
               <tbody>
-                {visibleBills.map((b, i) => (
-                  <tr key={b.id} className={i % 2 === 1 ? 'bg-[#F9FAFB]/70' : 'bg-white'}>
-                    <td className="border-b border-[#F3F4F6] px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={selected.has(b.id)}
-                        onChange={() => toggleBill(b.id)}
-                        className={checkboxClass}
-                      />
-                    </td>
-                    <td className="border-b border-[#F3F4F6] px-4 py-3 font-semibold text-[#0F766E]">
-                      {b.no}
-                    </td>
-                    <td className="border-b border-[#F3F4F6] px-4 py-3 text-[#111827]">{b.dueDate}</td>
-                    <td className="border-b border-[#F3F4F6] px-4 py-3 text-right tabular-nums text-[#111827]">
-                      {formatRm(b.original)}
-                    </td>
-                    <td className="border-b border-[#F3F4F6] px-4 py-3 text-right tabular-nums text-[#111827]">
-                      {formatRm(b.open)}
-                    </td>
-                    <td className="border-b border-[#F3F4F6] px-4 py-3">
-                      <input
-                        type="number"
-                        min="0"
-                        step="any"
-                        disabled={!selected.has(b.id)}
-                        value={payments[b.id] ?? ''}
-                        onChange={(e) => setPayments((p) => ({ ...p, [b.id]: e.target.value }))}
-                        className="h-10 w-full rounded-xl border border-[#E5E7EB] bg-white px-3 text-right text-[13px] font-bold text-[#111827] focus:border-[#0F766E] focus:outline-none disabled:bg-[#F9FAFB] disabled:text-[#9CA3AF]"
-                        placeholder={selected.has(b.id) ? formatRm(b.open) : ''}
-                      />
+                {loading ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-[13px] font-semibold text-[#64748B]">
+                      Loading open bills...
                     </td>
                   </tr>
-                ))}
+                ) : error ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-[13px] font-semibold text-[#B91C1C]">
+                      {error}
+                    </td>
+                  </tr>
+                ) : visibleBills.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-[13px] font-semibold text-[#64748B]">
+                      No open bills found.
+                    </td>
+                  </tr>
+                ) : (
+                  visibleBills.map((b, i) => (
+                    <tr key={b.id} className={i % 2 === 1 ? 'bg-[#F9FAFB]/70' : 'bg-white'}>
+                      <td className="border-b border-[#F3F4F6] px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(b.id)}
+                          onChange={() => toggleBill(b.id)}
+                          className={checkboxClass}
+                        />
+                      </td>
+                      <td className="border-b border-[#F3F4F6] px-4 py-3 font-semibold text-[#0F766E]">
+                        Bill #{b.docNumber}
+                        {b.supplier ? ` (${b.supplier.name})` : ''}
+                      </td>
+                      <td className="border-b border-[#F3F4F6] px-4 py-3 text-[#111827]">{b.dueDate || '—'}</td>
+                      <td className="border-b border-[#F3F4F6] px-4 py-3 text-right tabular-nums text-[#111827]">
+                        {formatRm(b.totalAmt || 0)}
+                      </td>
+                      <td className="border-b border-[#F3F4F6] px-4 py-3 text-right tabular-nums text-[#111827]">
+                        {formatRm(b.balance ?? b.totalAmt)}
+                      </td>
+                      <td className="border-b border-[#F3F4F6] px-4 py-3">
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          disabled={!selected.has(b.id)}
+                          value={payments[b.id] ?? ''}
+                          onChange={(e) => setPayments((p) => ({ ...p, [b.id]: e.target.value }))}
+                          className="h-10 w-full rounded-xl border border-[#E5E7EB] bg-white px-3 text-right text-[13px] font-bold text-[#111827] focus:border-[#0F766E] focus:outline-none disabled:bg-[#F9FAFB] disabled:text-[#9CA3AF]"
+                          placeholder={selected.has(b.id) ? formatRm(b.balance ?? b.totalAmt) : ''}
+                        />
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -267,10 +364,11 @@ export default function BillPayment() {
             </button>
             <button
               type="button"
-              className="inline-flex h-10 items-center justify-center rounded-xl bg-[#0F766E] px-5 text-[14px] font-bold text-white hover:bg-[#0F766E]/90"
-              title="UI preview"
+              onClick={handleSubmit}
+              disabled={busy}
+              className="inline-flex h-10 items-center justify-center rounded-xl bg-[#0F766E] px-5 text-[14px] font-bold text-white hover:bg-[#0F766E]/90 disabled:opacity-60"
             >
-              Save and close
+              {busy ? 'Saving...' : 'Save and close'}
               <HiOutlineChevronDown className="ml-2 h-4 w-4" />
             </button>
           </div>

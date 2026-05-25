@@ -15,6 +15,13 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import RegisterCompany from './pages/RegisterCompany'
 import RegisterUser from './pages/RegisterUser'
+import CustomerList from './pages/CustomerList'
+import CreateCustomer from './pages/CreateCustomer'
+import ChartOfAccounts from './pages/ChartOfAccounts'
+import CreateEditAccount from './pages/CreateEditAccount'
+import PaymentList from './pages/PaymentList'
+import SupplierList from './pages/SupplierList'
+import CreateSupplier from './pages/CreateSupplier'
 
 export default function App() {
   return (
@@ -29,8 +36,21 @@ export default function App() {
           <Route path="/analytics" element={<FinancialForecast />} />
           <Route path="/quick" element={<QuickAction />} />
           <Route path="/invoice/new" element={<CreateInvoice />} />
+          <Route path="/invoice/edit/:id" element={<CreateInvoice />} />
           <Route path="/invoice/payment" element={<InvoicePayment />} />
+          <Route path="/payment/edit/:id" element={<InvoicePayment />} />
+          <Route path="/payments" element={<PaymentList />} />
           <Route path="/bill/new" element={<CreateBill />} />
+          <Route path="/bill/edit/:id" element={<CreateBill />} />
+          <Route path="/customers" element={<CustomerList />} />
+          <Route path="/customer/create" element={<CreateCustomer />} />
+          <Route path="/customer/edit/:id" element={<CreateCustomer />} />
+          <Route path="/suppliers" element={<SupplierList />} />
+          <Route path="/supplier/create" element={<CreateSupplier />} />
+          <Route path="/supplier/edit/:id" element={<CreateSupplier />} />
+          <Route path="/accounts" element={<ChartOfAccounts />} />
+          <Route path="/accounts/new" element={<CreateEditAccount />} />
+          <Route path="/accounts/edit/:id" element={<CreateEditAccount />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/register-company" element={<RegisterCompany />} />

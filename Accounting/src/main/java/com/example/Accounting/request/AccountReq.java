@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class AccountReq {
+    private String accountCode;
     private String name;
     private AccountType accountType;
     private Long parentId;

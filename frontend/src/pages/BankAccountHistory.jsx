@@ -1,85 +1,12 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { api } from '../api'
+import { useAuth } from '../context/AuthContext'
 import {
-  HiOutlineArrowLeft,
   HiOutlineChevronDown,
   HiOutlinePlus,
 } from 'react-icons/hi2'
 import DashboardLayout from '../components/DashboardLayout'
-
-/** Demo ledger — replace with API when available */
-const DEMO_ROWS = [
-  {
-    id: '1',
-    date: '02.05.2022',
-    refNo: '27',
-    refType: 'Journal',
-    payee: 'Opening balance transfer',
-    payeeSub: '',
-    memo: '',
-    foreign: '',
-    payment: null,
-    deposit: 10000.0,
-    balance: 10000.0,
-    reconciled: true,
-  },
-  {
-    id: '2',
-    date: '05.05.2022',
-    refNo: '104',
-    refType: 'Expense',
-    payee: 'GOH KIM HOOI',
-    payeeSub: 'Rental of workplace - COS',
-    memo: '',
-    foreign: '',
-    payment: 7500.0,
-    deposit: null,
-    balance: 2500.0,
-    reconciled: true,
-  },
-  {
-    id: '3',
-    date: '12.05.2022',
-    refNo: '88',
-    refType: 'Bill payment',
-    payee: 'Utilities Malaysia Sdn Bhd',
-    payeeSub: 'Electricity — HQ',
-    memo: '',
-    foreign: '',
-    payment: 420.5,
-    deposit: null,
-    balance: 2079.5,
-    reconciled: true,
-  },
-  {
-    id: '4',
-    date: '18.05.2022',
-    refNo: '201',
-    refType: 'Journal',
-    payee: 'Interest income',
-    payeeSub: '',
-    memo: '',
-    foreign: '',
-    payment: null,
-    deposit: 127.0,
-    balance: 2206.5,
-    reconciled: true,
-  },
-  {
-    id: '5',
-    date: '22.05.2022',
-    refNo: '45',
-    refType: 'Expense',
-    payee: 'Office supplies — batch',
-    payeeSub: 'Stationery',
-    memo: '',
-    foreign: '',
-    payment: 7.5,
-    deposit: null,
-    balance: 2199.0,
-    reconciled: true,
-  },
-]
 
 function formatRm(n) {
   return new Intl.NumberFormat('en-MY', {
@@ -109,7 +36,39 @@ function ReconciledBalance({ value, reconciled }) {
 
 export default function BankAccountHistory() {
   const navigate = useNavigate()
-  const endingBalance = DEMO_ROWS[DEMO_ROWS.length - 1]?.balance ?? 0
+  const { me, meError, getFreshToken } = useAuth()
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!me || meError) return
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      try {
+        const token = await getFreshToken()
+        if (!token || cancelled) return
+        const data = await api('/account/bank/ledger', { token })
+        if (!cancelled) {
+          setRows(data || [])
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Could not fetch bank ledger')
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [me, meError, getFreshToken])
+
+  const endingBalance = rows.length > 0 ? rows[rows.length - 1].balance : 0
 
   return (
     <DashboardLayout activeNav="bank">
@@ -137,7 +96,7 @@ export default function BankAccountHistory() {
             </div>
 
             <p className="text-[14px] font-medium text-[#64748B]">
-              Reconciled through 20.05.2023 · Showing 1–{DEMO_ROWS.length} of 1,090
+              Showing {rows.length} transactions
             </p>
           </div>
 
@@ -248,38 +207,57 @@ export default function BankAccountHistory() {
                 </tr>
               </thead>
               <tbody>
-                {DEMO_ROWS.map((row, i) => (
-                  <tr
-                    key={row.id}
-                    className={`border-b border-[#F3F4F6] ${i % 2 === 1 ? 'bg-[#F9FAFB]/70' : 'bg-white'}`}
-                  >
-                    <td className="whitespace-nowrap px-3 py-3 align-top font-medium text-[#111827]">
-                      {row.date}
-                    </td>
-                    <td className="px-3 py-3 align-top">
-                      <div className="font-bold text-[#111827]">{row.refNo}</div>
-                      <div className="text-[12px] font-medium text-[#64748B]">{row.refType}</div>
-                    </td>
-                    <td className="px-3 py-3 align-top">
-                      <div className="font-medium text-[#111827]">{row.payee}</div>
-                      {row.payeeSub ? (
-                        <div className="mt-0.5 text-[12px] text-[#64748B]">{row.payeeSub}</div>
-                      ) : null}
-                    </td>
-                    <td className="px-3 py-3 align-top text-[#9CA3AF]">{row.memo || '—'}</td>
-                    <td className="px-3 py-3 align-top text-[#9CA3AF]">{row.foreign || '—'}</td>
-                    <td className="px-3 py-3 align-top text-right tabular-nums font-medium text-[#111827]">
-                      {row.payment != null ? formatRm(row.payment) : '—'}
-                    </td>
-                    <td className="px-3 py-3 align-top text-right tabular-nums font-semibold text-[#0F766E]">
-                      {row.deposit != null ? formatRm(row.deposit) : '—'}
-                    </td>
-                    <td className="px-3 py-3 align-top">
-
-                      <ReconciledBalance value={row.balance} reconciled={row.reconciled} />
+                {loading ? (
+                  <tr>
+                    <td colSpan={8} className="py-8 text-center text-[13px] font-semibold text-[#64748B]">
+                      Loading ledger...
                     </td>
                   </tr>
-                ))}
+                ) : error ? (
+                  <tr>
+                    <td colSpan={8} className="py-8 text-center text-[13px] font-semibold text-[#B91C1C]">
+                      {error}
+                    </td>
+                  </tr>
+                ) : rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-8 text-center text-[13px] font-semibold text-[#64748B]">
+                      No transactions found.
+                    </td>
+                  </tr>
+                ) : (
+                  rows.map((row, i) => (
+                    <tr
+                      key={row.id}
+                      className={`border-b border-[#F3F4F6] ${i % 2 === 1 ? 'bg-[#F9FAFB]/70' : 'bg-white'}`}
+                    >
+                      <td className="whitespace-nowrap px-3 py-3 align-top font-medium text-[#111827]">
+                        {row.date}
+                      </td>
+                      <td className="px-3 py-3 align-top">
+                        <div className="font-bold text-[#111827]">{row.refNo}</div>
+                        <div className="text-[12px] font-medium text-[#64748B]">{row.refType}</div>
+                      </td>
+                      <td className="px-3 py-3 align-top">
+                        <div className="font-medium text-[#111827]">{row.payee}</div>
+                        {row.payeeSub ? (
+                          <div className="mt-0.5 text-[12px] text-[#64748B]">{row.payeeSub}</div>
+                        ) : null}
+                      </td>
+                      <td className="px-3 py-3 align-top text-[#9CA3AF]">{row.memo || '—'}</td>
+                      <td className="px-3 py-3 align-top text-[#9CA3AF]">{row.foreign || '—'}</td>
+                      <td className="px-3 py-3 align-top text-right tabular-nums font-medium text-[#111827]">
+                        {row.payment != null ? formatRm(row.payment) : '—'}
+                      </td>
+                      <td className="px-3 py-3 align-top text-right tabular-nums font-semibold text-[#0F766E]">
+                        {row.deposit != null ? formatRm(row.deposit) : '—'}
+                      </td>
+                      <td className="px-3 py-3 align-top">
+                        <ReconciledBalance value={row.balance} reconciled={row.reconciled} />
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

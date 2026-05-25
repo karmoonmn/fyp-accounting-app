@@ -30,7 +30,10 @@ public class Invoice extends Transaction{
     @Enumerated(EnumType.STRING)
     private TransactionStatus status;
 
-    @OneToMany(mappedBy = "transaction", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "transaction", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonManagedReference
     private List<Line> lines;
+
+    @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<PaymentAllocation> payments;
 }

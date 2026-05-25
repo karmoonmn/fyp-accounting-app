@@ -8,15 +8,16 @@ import com.example.Accounting.model.*;
 import com.example.Accounting.repo.*;
 import com.example.Accounting.request.AccountReq;
 import com.example.Accounting.request.InvoiceReq;
+import com.example.Accounting.request.PaymentReq;
 import com.example.Accounting.security.SecurityUtils;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.math.BigDecimal;
+import java.util.Optional;
 
 
 @Slf4j
@@ -32,6 +33,8 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final JournalEntryLineRepo journalEntryLineRepo;
     private final CompanyRepo companyRepo;
     private final AccountService accountService;
+    private final PaymentRepo paymentRepo;
+    private final PaymentAllocationRepo paymentAllocationRepo;
 
     @Override
     public Invoice createInvoice(InvoiceReq req) throws AccountNotFoundException {
@@ -51,10 +54,10 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         Account arAccount = accountRepo
                 .findByNameAndCompanyId("Accounts Receivable", companyId)
-                .orElse(accountService.createAccount(new AccountReq("Accounts Receivable", AccountType.ASSET, null)));
+                .orElseGet(() -> accountService.createAccount(new AccountReq(null, "Accounts Receivable", AccountType.ASSET, null)));
         Account salesAccount = accountRepo
                 .findByNameAndCompanyId("Sales", companyId)
-                .orElse(accountService.createAccount(new AccountReq("Sales", AccountType.REVENUE, null)));
+                .orElseGet(() -> accountService.createAccount(new AccountReq(null, "Sales", AccountType.REVENUE, null)));
 
         //create journal lines (match invoice line totals, not a separate req field)
         JournalLine debitLine = journalEntryService.createJournalLine(arAccount, true, total, 1, null);
@@ -79,32 +82,224 @@ public class InvoiceServiceImpl implements InvoiceService {
         return invoice;
     }
 
-//    @Override
-//    public Invoice getInvoiceById(Long id) {
-//        Long companyId = SecurityUtils.requireCompanyId();
-//        return invoiceRepo.findByIdAndCompanyId(id, companyId)
-//                .orElseThrow(() -> new AccountingException(ErrorCode.INVOICE_NOT_FOUND));
-//    }
-
-//    @Override
-//    public List<Invoice> listInvoicesForCurrentCompany() {
-//        return invoiceRepo.findAllByCompanyIdOrderByTxnDateDesc(SecurityUtils.requireCompanyId());
-//    }
-//
-//    @Override
-//    public List<Invoice> getInvoicesByCustomerId(Long customerId) {
-//        Long companyId = SecurityUtils.requireCompanyId();
-//        List<Invoice> invoices = invoiceRepo.findAllByCompanyIdAndCustomer_Id(companyId, customerId);
-//        return List.of();
-//    }
+    @Override
+    public Invoice getInvoiceById(Long id) {
+        Long companyId = SecurityUtils.requireCompanyId();
+        return invoiceRepo.findByIdAndCompanyId(id, companyId)
+                .orElseThrow(() -> new AccountingException(ErrorCode.INVOICE_NOT_FOUND));
+    }
 
     @Override
-    public Invoice updateInvoice(Long id, InvoiceReq invoiceReq) {
-        return null;
+    public List<Invoice> listInvoicesForCurrentCompany() {
+        return invoiceRepo.findAllByCompanyIdOrderByTxnDateDesc(SecurityUtils.requireCompanyId());
+    }
+
+    @Override
+    public List<Invoice> getInvoicesByCustomerId(Long customerId) {
+        Long companyId = SecurityUtils.requireCompanyId();
+        return invoiceRepo.findAllByCompanyIdAndCustomer_Id(companyId, customerId);
+    }
+
+    @Override
+    public Invoice updateInvoice(Long id, InvoiceReq req) {
+        Long companyId = SecurityUtils.requireCompanyId();
+        Invoice invoice = invoiceRepo.findByIdAndCompanyId(id, companyId)
+                .orElseThrow(() -> new AccountingException(ErrorCode.INVOICE_NOT_FOUND));
+
+        String oldDocNumber = invoice.getDocNumber();
+
+        invoice.setDocNumber(req.getDocNumber());
+        invoice.setTxnDate(req.getTxnDate());
+        invoice.setShipAddr(req.getShipAddr());
+        invoice.setShipDate(req.getShipDate());
+        invoice.setDueDate(req.getDueDate());
+
+        if (req.getCustomerId() != null) {
+            Customer customer = customerRepo.findById(req.getCustomerId()).orElseThrow();
+            invoice.setCustomer(customer);
+        } else {
+            invoice.setCustomer(null);
+        }
+
+        invoice.getLines().clear();
+        if (req.getLines() != null) {
+            List<Line> newLines = req.getLines().stream().map(lineReq -> {
+                BigDecimal amount = lineReq.getQuantity().multiply(lineReq.getUnitPrice());
+                return Line.builder()
+                        .lineNum(lineReq.getLineNum())
+                        .amount(amount)
+                        .quantity(lineReq.getQuantity())
+                        .unitPrice(lineReq.getUnitPrice())
+                        .description(lineReq.getDescription())
+                        .transaction(invoice)
+                        .build();
+            }).toList();
+            invoice.getLines().addAll(newLines);
+        }
+
+        BigDecimal total = invoice.getLines().stream()
+                .map(Line::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        BigDecimal amountPaid = invoice.getTotalAmt() != null && invoice.getBalance() != null ?
+                invoice.getTotalAmt().subtract(invoice.getBalance()) : BigDecimal.ZERO;
+        
+        BigDecimal newBalance = total.subtract(amountPaid);
+        if (newBalance.compareTo(BigDecimal.ZERO) < 0) {
+            newBalance = BigDecimal.ZERO;
+        }
+
+        invoice.setTotalAmt(total);
+        invoice.setBalance(newBalance);
+
+        if (newBalance.compareTo(BigDecimal.ZERO) == 0 && total.compareTo(BigDecimal.ZERO) > 0) {
+            invoice.setStatus(TransactionStatus.PAID);
+        } else if (newBalance.compareTo(total) < 0 && newBalance.compareTo(BigDecimal.ZERO) > 0) {
+            invoice.setStatus(TransactionStatus.PARTIALLY_PAID);
+        } else {
+            invoice.setStatus(null);
+        }
+
+        invoiceRepo.save(invoice);
+
+        // Sync journal entry
+        Optional<JournalEntry> jeOpt = journalEntryRepo.findByDocNumberAndCompanyId("JE-" + oldDocNumber, companyId);
+        if (jeOpt.isPresent()) {
+            JournalEntry journalEntry = jeOpt.get();
+            journalEntry.setDocNumber("JE-" + req.getDocNumber());
+            journalEntry.setTxnDate(req.getTxnDate());
+            journalEntry.setTotalDebit(total);
+            journalEntry.setTotalCredit(total);
+
+            List<JournalLine> lines = journalEntry.getLines();
+            for (JournalLine jl : lines) {
+                if (jl.getDebit() != null && jl.getDebit().compareTo(BigDecimal.ZERO) > 0) {
+                    jl.setDebit(total);
+                } else if (jl.getCredit() != null && jl.getCredit().compareTo(BigDecimal.ZERO) > 0) {
+                    jl.setCredit(total);
+                }
+                journalEntryLineRepo.save(jl);
+            }
+            journalEntryRepo.save(journalEntry);
+        }
+
+        return invoice;
     }
 
     @Override
     public void deleteInvoice(Long id) {
         Long companyId = SecurityUtils.requireCompanyId();
+        Invoice invoice = invoiceRepo.findByIdAndCompanyId(id, companyId)
+                .orElseThrow(() -> new AccountingException(ErrorCode.INVOICE_NOT_FOUND));
+
+        String docNumber = invoice.getDocNumber();
+
+        invoiceRepo.delete(invoice);
+
+        Optional<JournalEntry> jeOpt = journalEntryRepo.findByDocNumberAndCompanyId("JE-" + docNumber, companyId);
+        jeOpt.ifPresent(journalEntry -> {
+            journalEntryRepo.delete(journalEntry);
+        });
+    }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional
+    public void recordPayments(PaymentReq req) {
+        Long companyId = SecurityUtils.requireCompanyId();
+        Company company = companyRepo.getReferenceById(companyId);
+
+        BigDecimal totalPaymentAmount = BigDecimal.ZERO;
+
+        for (PaymentReq.InvoicePaymentItem item : req.getPayments()) {
+            if (item.getInvoiceId() == null || item.getAmount() == null || item.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+
+            Invoice invoice = invoiceRepo.findByIdAndCompanyId(item.getInvoiceId(), companyId)
+                    .orElseThrow(() -> new AccountingException(ErrorCode.INVOICE_NOT_FOUND));
+
+            BigDecimal currentBalance = invoice.getBalance() != null ? invoice.getBalance() : invoice.getTotalAmt();
+            BigDecimal newBalance = currentBalance.subtract(item.getAmount());
+            if (newBalance.compareTo(BigDecimal.ZERO) < 0) {
+                newBalance = BigDecimal.ZERO;
+            }
+
+            invoice.setBalance(newBalance);
+
+            BigDecimal totalAmt = invoice.getTotalAmt() != null ? invoice.getTotalAmt() : BigDecimal.ZERO;
+            if (newBalance.compareTo(BigDecimal.ZERO) == 0 && totalAmt.compareTo(BigDecimal.ZERO) > 0) {
+                invoice.setStatus(TransactionStatus.PAID);
+            } else {
+                invoice.setStatus(TransactionStatus.PARTIALLY_PAID);
+            }
+
+            invoiceRepo.save(invoice);
+            totalPaymentAmount = totalPaymentAmount.add(item.getAmount());
+        }
+
+        if (totalPaymentAmount.compareTo(BigDecimal.ZERO) > 0) {
+            Payment payment = Payment.builder()
+                    .company(company)
+                    .docNumber(req.getRefNo())
+                    .txnDate(req.getPaymentDate())
+                    .depositTo(req.getDepositTo() != null ? req.getDepositTo() : "Bank")
+                    .paymentType("INVOICE_RECEIPT")
+                    .totalAmount(totalPaymentAmount)
+                    .build();
+            paymentRepo.save(payment);
+
+            for (PaymentReq.InvoicePaymentItem item : req.getPayments()) {
+                if (item.getInvoiceId() == null || item.getAmount() == null || item.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+                    continue;
+                }
+                Invoice invoice = invoiceRepo.findByIdAndCompanyId(item.getInvoiceId(), companyId).orElse(null);
+                if (invoice != null) {
+                    PaymentAllocation allocation = PaymentAllocation.builder()
+                            .payment(payment)
+                            .invoice(invoice)
+                            .amount(item.getAmount())
+                            .build();
+                    paymentAllocationRepo.save(allocation);
+                }
+            }
+            Account arAccount = accountRepo
+                    .findByNameAndCompanyId("Accounts Receivable", companyId)
+                    .orElseGet(() -> {
+                        try {
+                            return accountService.createAccount(new AccountReq(null, "Accounts Receivable", AccountType.ASSET, null));
+                        } catch (Exception e) {
+                            throw new RuntimeException("Could not create Accounts Receivable account", e);
+                        }
+                    });
+            
+            String depositToName = req.getDepositTo() != null ? req.getDepositTo() : "Bank";
+            Account depositAccount = accountRepo
+                    .findByNameAndCompanyId(depositToName, companyId)
+                    .orElseGet(() -> {
+                        try {
+                            return accountService.createAccount(new AccountReq(null, depositToName, AccountType.ASSET, null));
+                        } catch (Exception e) {
+                            throw new RuntimeException("Could not create deposit account", e);
+                        }
+                    });
+
+            JournalLine debitLine = journalEntryService.createJournalLine(depositAccount, true, totalPaymentAmount, 1, "Payment received");
+            JournalLine creditLine = journalEntryService.createJournalLine(arAccount, false, totalPaymentAmount, 2, "Payment received");
+
+            JournalEntry journalEntry = JournalEntry.builder()
+                    .company(company)
+                    .lines(Arrays.asList(debitLine, creditLine))
+                    .docNumber("JE-PAY-" + req.getRefNo())
+                    .txnDate(req.getPaymentDate())
+                    .totalDebit(totalPaymentAmount)
+                    .totalCredit(totalPaymentAmount)
+                    .build();
+
+            journalEntryRepo.save(journalEntry);
+
+            debitLine.setJournalEntry(journalEntry);
+            creditLine.setJournalEntry(journalEntry);
+            journalEntryLineRepo.saveAll(Arrays.asList(debitLine, creditLine));
+        }
     }
 }

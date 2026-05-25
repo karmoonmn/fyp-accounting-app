@@ -1,13 +1,8 @@
-import React from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { HiOutlineChevronDown, HiOutlineXMark } from 'react-icons/hi2'
-
-const DEMO_INVOICES = [
-  { id: 'i1', no: 'Invoice #260403', dueDate: '03.06.2026', original: 5139.0, open: 5139.0 },
-  { id: 'i2', no: 'Invoice #260401', dueDate: '08.06.2026', original: 9189.5, open: 9189.5 },
-  { id: 'i3', no: 'Invoice #260304', dueDate: '01.06.2026', original: 1440.0, open: 1440.0 },
-  { id: 'i4', no: 'Invoice #260303', dueDate: '28.05.2026', original: 12657.5, open: 12657.5 },
-]
+import { api } from '../api'
+import { useAuth } from '../context/AuthContext'
 
 function formatMoney(n) {
   return new Intl.NumberFormat('en-SG', {
@@ -19,52 +14,186 @@ function formatMoney(n) {
 
 export default function InvoicePayment() {
   const navigate = useNavigate()
-  const [customer, setCustomer] = React.useState('Key Concept Pte Ltd')
-  const [email, setEmail] = React.useState('')
-  const [sendLater, setSendLater] = React.useState(false)
-  const [depositTo, setDepositTo] = React.useState('Bank')
-  const [paymentDate, setPaymentDate] = React.useState('2026-05-04')
-  const [refNo, setRefNo] = React.useState('RCV-10013')
-  const [filter, setFilter] = React.useState('')
+  const { id } = useParams()
+  const isEdit = !!id
+  const { me, meError, getFreshToken } = useAuth()
+  
+  const [customer, setCustomer] = useState('')
+  const [email, setEmail] = useState('')
+  const [sendLater, setSendLater] = useState(false)
+  const [depositTo, setDepositTo] = useState('Bank')
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [refNo, setRefNo] = useState(() => {
+    return 'RCV-' + Math.floor(10000 + Math.random() * 90000)
+  })
+  const [filter, setFilter] = useState('')
+  const [invoices, setInvoices] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
 
-  const [selected, setSelected] = React.useState(() => new Set([DEMO_INVOICES[0]?.id]))
-  const [payments, setPayments] = React.useState(() => ({
-    [DEMO_INVOICES[0]?.id]: '120.00',
-  }))
+  const [selected, setSelected] = useState(() => new Set())
+  const [payments, setPayments] = useState(() => ({}))
 
-  const amountReceived = DEMO_INVOICES.reduce((sum, inv) => {
-    if (!selected.has(inv.id)) return sum
-    const v = Number.parseFloat(payments[inv.id] ?? '') || 0
+  useEffect(() => {
+    if (!me || meError) return
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      try {
+        const token = await getFreshToken()
+        if (!token || cancelled) return
+        const [data, paymentData] = await Promise.all([
+          api('/invoice', { token }),
+          isEdit ? api(`/payment/${id}`, { token }) : Promise.resolve(null)
+        ])
+        
+        if (!cancelled) {
+          if (paymentData) {
+            setRefNo(paymentData.docNumber || '')
+            setPaymentDate(paymentData.txnDate || new Date().toISOString().slice(0, 10))
+            setDepositTo(paymentData.depositTo || 'Bank')
+            
+            const sel = new Set()
+            const pmap = {}
+            if (paymentData.allocations) {
+              paymentData.allocations.forEach(a => {
+                if (a.invoice) {
+                  const idStr = a.invoice.id.toString()
+                  sel.add(idStr)
+                  pmap[idStr] = a.amount.toString()
+                }
+              })
+            }
+            setSelected(sel)
+            setPayments(pmap)
+          }
+
+          const visibleInvoices = (data || []).filter((inv) => {
+            const isOutstanding = (Number.parseFloat(inv.balance) || 0) > 0
+            const isPaidByThis = paymentData?.allocations?.some(a => a.invoice?.id === inv.id)
+            return isOutstanding || isPaidByThis
+          })
+          setInvoices(visibleInvoices)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Could not fetch outstanding invoices')
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [me, meError, getFreshToken])
+
+  const amountReceived = invoices.reduce((sum, inv) => {
+    const idStr = inv.id.toString()
+    if (!selected.has(idStr)) return sum
+    const v = Number.parseFloat(payments[idStr] ?? '') || 0
     return sum + v
   }, 0)
 
   function close() {
-    navigate('/invoices')
+    navigate(-1)
   }
 
   function toggle(id) {
+    const idStr = id.toString()
     setSelected((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      if (next.has(idStr)) {
+        next.delete(idStr)
+        setPayments((p) => {
+          const nextP = { ...p }
+          delete nextP[idStr]
+          return nextP
+        })
+      } else {
+        next.add(idStr)
+        const inv = invoices.find((i) => i.id.toString() === idStr)
+        if (inv) {
+          setPayments((p) => ({ ...p, [idStr]: (Number.parseFloat(inv.balance) || 0).toString() }))
+        }
+      }
       return next
     })
+  }
+
+  async function handleSubmit(e) {
+    if (e) e.preventDefault()
+    if (selected.size === 0) {
+      setError('Please select at least one invoice to receive payment.')
+      return
+    }
+    setBusy(true)
+    setError('')
+    try {
+      const token = await getFreshToken()
+      if (!token) throw new Error('Not signed in')
+
+      const paymentItems = Array.from(selected).map((idStr) => {
+        const amt = Number.parseFloat(payments[idStr])
+        if (!Number.isFinite(amt) || amt <= 0) {
+          throw new Error('Please enter a valid payment amount for all selected invoices.')
+        }
+        return {
+          invoiceId: Number.parseInt(idStr, 10),
+          amount: amt,
+        }
+      })
+
+      const body = {
+        refNo: refNo.trim(),
+        paymentDate,
+        depositTo,
+        payments: paymentItems,
+      }
+
+      const url = isEdit ? `/payment/${id}` : '/invoice/payment'
+      const method = isEdit ? 'PUT' : 'POST'
+
+      await api(url, {
+        method,
+        token,
+        body,
+      })
+
+      navigate(-1)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save payment')
+    } finally {
+      setBusy(false)
+    }
   }
 
   const checkboxClass =
     'h-4 w-4 rounded border border-[#D1D5DB] bg-white accent-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/30'
 
-  const visible = DEMO_INVOICES.filter((inv) => {
+  const visible = invoices.map(inv => ({
+    id: inv.id.toString(),
+    no: `Invoice #${inv.docNumber}`,
+    dueDate: inv.dueDate || '—',
+    original: Number.parseFloat(inv.totalAmt) || 0,
+    open: Number.parseFloat(inv.balance) || 0,
+    customerName: inv.customer?.name || ''
+  })).filter((inv) => {
     const q = filter.trim().toLowerCase()
     if (!q) return true
-    return inv.no.toLowerCase().includes(q)
+    return inv.no.toLowerCase().includes(q) || inv.customerName.toLowerCase().includes(q)
   })
 
   return (
     <div className="min-h-screen bg-white pb-20">
       <div className="flex items-center justify-between border-b border-[#E5E7EB] bg-[#F9FAFB] px-6 py-4">
         <div className="min-w-0">
-          <h2 className="truncate text-[18px] font-bold text-[#111827]">Receive payment #{refNo}</h2>
+          <h2 className="truncate text-[18px] font-bold text-[#111827]">
+            {isEdit ? 'Edit Payment' : 'Receive Payment'} #{refNo}
+          </h2>
         </div>
         <button
           type="button"
@@ -77,6 +206,11 @@ export default function InvoicePayment() {
       </div>
 
       <div className="px-6 py-6">
+        {error ? (
+          <div className="mb-6 rounded-xl border border-[#FEE2E2] bg-[#FEF2F2] px-4 py-3 text-[13px] font-semibold text-[#B91C1C]">
+            {error}
+          </div>
+        ) : null}
         <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
           <div className="grid grid-cols-4 gap-4">
             <label className="text-[12px] font-bold text-[#6B7280]">
@@ -199,40 +333,54 @@ export default function InvoicePayment() {
                 </tr>
               </thead>
               <tbody>
-                {visible.map((inv, i) => (
-                  <tr key={inv.id} className={i % 2 === 1 ? 'bg-[#F9FAFB]/70' : 'bg-white'}>
-                    <td className="border-b border-[#F3F4F6] px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={selected.has(inv.id)}
-                        onChange={() => toggle(inv.id)}
-                        className={checkboxClass}
-                      />
-                    </td>
-                    <td className="border-b border-[#F3F4F6] px-4 py-3 font-semibold text-[#0F766E]">
-                      {inv.no}
-                    </td>
-                    <td className="border-b border-[#F3F4F6] px-4 py-3 text-[#111827]">{inv.dueDate}</td>
-                    <td className="border-b border-[#F3F4F6] px-4 py-3 text-right tabular-nums text-[#111827]">
-                      {formatMoney(inv.original)}
-                    </td>
-                    <td className="border-b border-[#F3F4F6] px-4 py-3 text-right tabular-nums text-[#111827]">
-                      {formatMoney(inv.open)}
-                    </td>
-                    <td className="border-b border-[#F3F4F6] px-4 py-3">
-                      <input
-                        type="number"
-                        min="0"
-                        step="any"
-                        disabled={!selected.has(inv.id)}
-                        value={payments[inv.id] ?? ''}
-                        onChange={(e) => setPayments((p) => ({ ...p, [inv.id]: e.target.value }))}
-                        className="h-10 w-full rounded-xl border border-[#E5E7EB] bg-white px-3 text-right text-[13px] font-bold text-[#111827] focus:border-[#0F766E] focus:outline-none disabled:bg-[#F9FAFB] disabled:text-[#9CA3AF]"
-                        placeholder={selected.has(inv.id) ? formatMoney(inv.open) : ''}
-                      />
+                {loading ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-[13px] font-semibold text-[#64748B]">
+                      Loading outstanding invoices...
                     </td>
                   </tr>
-                ))}
+                ) : visible.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-[13px] font-semibold text-[#64748B]">
+                      No outstanding invoices found.
+                    </td>
+                  </tr>
+                ) : (
+                  visible.map((inv, i) => (
+                    <tr key={inv.id} className={i % 2 === 1 ? 'bg-[#F9FAFB]/70' : 'bg-white'}>
+                      <td className="border-b border-[#F3F4F6] px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(inv.id)}
+                          onChange={() => toggle(inv.id)}
+                          className={checkboxClass}
+                        />
+                      </td>
+                      <td className="border-b border-[#F3F4F6] px-4 py-3 font-semibold text-[#0F766E]">
+                        {inv.no}
+                      </td>
+                      <td className="border-b border-[#F3F4F6] px-4 py-3 text-[#111827]">{inv.dueDate}</td>
+                      <td className="border-b border-[#F3F4F6] px-4 py-3 text-right tabular-nums text-[#111827]">
+                        {formatMoney(inv.original)}
+                      </td>
+                      <td className="border-b border-[#F3F4F6] px-4 py-3 text-right tabular-nums text-[#111827]">
+                        {formatMoney(inv.open)}
+                      </td>
+                      <td className="border-b border-[#F3F4F6] px-4 py-3">
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          disabled={!selected.has(inv.id)}
+                          value={payments[inv.id] ?? ''}
+                          onChange={(e) => setPayments((p) => ({ ...p, [inv.id]: e.target.value }))}
+                          className="h-10 w-full rounded-xl border border-[#E5E7EB] bg-white px-3 text-right text-[13px] font-bold text-[#111827] focus:border-[#0F766E] focus:outline-none disabled:bg-[#F9FAFB] disabled:text-[#9CA3AF]"
+                          placeholder={selected.has(inv.id) ? formatMoney(inv.open) : ''}
+                        />
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -257,11 +405,11 @@ export default function InvoicePayment() {
             </button>
             <button
               type="button"
-              className="inline-flex h-10 items-center justify-center rounded-xl bg-[#0F766E] px-5 text-[14px] font-bold text-white hover:bg-[#0F766E]/90"
-              title="UI preview"
+              onClick={handleSubmit}
+              disabled={busy}
+              className="inline-flex h-10 items-center justify-center rounded-xl bg-[#0F766E] px-5 text-[14px] font-bold text-white hover:bg-[#0F766E]/90 disabled:opacity-60"
             >
-              Save and close
-              <HiOutlineChevronDown className="ml-2 h-4 w-4" />
+              {busy ? 'Saving...' : (isEdit ? 'Update payment' : 'Save and close')}
             </button>
           </div>
         </div>
