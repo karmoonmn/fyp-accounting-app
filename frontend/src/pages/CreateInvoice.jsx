@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { HiOutlinePlus, HiOutlineTrash, HiOutlineXMark } from 'react-icons/hi2'
 import CustomSelect from '../components/CustomSelect'
 import FormSkeleton from '../components/FormSkeleton'
+import QuickCreateCustomerModal from '../components/QuickCreateCustomerModal'
 import { api } from '../api'
 import { useAuth } from '../context/AuthContext'
 
@@ -39,6 +40,7 @@ export default function CreateInvoice() {
   const [customers, setCustomers] = useState([])
   const [balance, setBalance] = useState(0)
   const [paymentsAllocations, setPaymentsAllocations] = useState([])
+  const [showCustomerModal, setShowCustomerModal] = useState(false)
 
   useEffect(() => {
     if (!me || meError) return
@@ -253,6 +255,7 @@ export default function CreateInvoice() {
                       placeholder="Select a customer"
                       className="mt-1"
                       buttonClassName="h-10"
+                      onCreateNew={() => setShowCustomerModal(true)}
                     />
                   </label>
                   <label className="text-[12px] font-bold text-[#6B7280]">
@@ -541,6 +544,16 @@ export default function CreateInvoice() {
           </div>
         </div>
       </div>
+
+      <QuickCreateCustomerModal 
+        isOpen={showCustomerModal} 
+        onClose={() => setShowCustomerModal(false)}
+        onSuccess={(newCustomer) => {
+          setCustomers(prev => [...prev, newCustomer])
+          setCustomerId(newCustomer.id.toString())
+          if (newCustomer.addr) setShipAddr(newCustomer.addr)
+        }}
+      />
     </div>
   )
 }

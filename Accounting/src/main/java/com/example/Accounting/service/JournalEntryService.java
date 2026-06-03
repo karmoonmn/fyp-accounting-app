@@ -9,7 +9,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 public interface JournalEntryService {
-//    void saveJournalEntry(List<JournalLine> lines, BigDecimal totalDebit, BigDecimal totalCredit);
+    JournalEntry saveJournalEntry(JournalEntry journalEntry);
 
     JournalLine createJournalLine(Account account, boolean isDebit, BigDecimal amount, int lineNum, String description);
 }

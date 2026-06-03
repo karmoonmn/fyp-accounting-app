@@ -64,6 +64,9 @@ public class BillServiceImpl implements BillService {
                 if (lineReq.getAccountId() != null) {
                     account = accountRepo.findByIdAndCompanyId(lineReq.getAccountId(), companyId)
                             .orElseThrow(() -> new RuntimeException("Account not found for line"));
+                    if (account.getAccountType() == AccountType.REVENUE) {
+                        throw new RuntimeException("Revenue accounts cannot be used on Bills.");
+                    }
                 } else {
                     throw new RuntimeException("Account is required for Bill lines");
                 }
@@ -118,7 +121,7 @@ public class BillServiceImpl implements BillService {
                 .totalCredit(totalAmt)
                 .build();
 
-        journalEntryRepo.save(journalEntry);
+        journalEntryService.saveJournalEntry(journalEntry);
         
         for (JournalLine jl : jeLines) {
             jl.setJournalEntry(journalEntry);
@@ -171,6 +174,9 @@ public class BillServiceImpl implements BillService {
 
                 Account account = accountRepo.findByIdAndCompanyId(lineReq.getAccountId(), companyId)
                         .orElseThrow(() -> new RuntimeException("Account not found for line"));
+                if (account.getAccountType() == AccountType.REVENUE) {
+                    throw new RuntimeException("Revenue accounts cannot be used on Bills.");
+                }
 
                 Line line = Line.builder()
                         .lineNum(lineReq.getLineNum())
@@ -211,7 +217,7 @@ public class BillServiceImpl implements BillService {
                 .totalCredit(totalAmt)
                 .build();
 
-        journalEntryRepo.save(journalEntry);
+        journalEntryService.saveJournalEntry(journalEntry);
         for (JournalLine jl : jeLines) {
             jl.setJournalEntry(journalEntry);
         }
@@ -268,7 +274,7 @@ public class BillServiceImpl implements BillService {
             BigDecimal currentBalance = bill.getBalance() != null ? bill.getBalance() : bill.getTotalAmt();
             BigDecimal newBalance = currentBalance.subtract(item.getAmount());
             if (newBalance.compareTo(BigDecimal.ZERO) < 0) {
-                newBalance = BigDecimal.ZERO;
+                throw new RuntimeException("Payment amount cannot exceed the remaining bill balance.");
             }
 
             bill.setBalance(newBalance);
@@ -337,7 +343,7 @@ public class BillServiceImpl implements BillService {
                     .totalCredit(totalPaymentAmount)
                     .build();
 
-            journalEntryRepo.save(journalEntry);
+            journalEntryService.saveJournalEntry(journalEntry);
             debitLine.setJournalEntry(journalEntry);
             creditLine.setJournalEntry(journalEntry);
             journalEntryLineRepo.saveAll(List.of(debitLine, creditLine));

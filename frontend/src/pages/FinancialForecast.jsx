@@ -1,4 +1,6 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
+import { api } from '../api'
+import { useAuth } from '../context/AuthContext'
 import {
   HiOutlineArrowDownTray,
   HiOutlineArrowTrendingDown,
@@ -33,30 +35,8 @@ const CHART_SERIES = [
   { month: 'Jun', revenue: 72000, expense: 48000 },
 ]
 
-const INCOME_BY_CATEGORY = [
-  { name: 'Product sales', value: 55, color: '#0F766E' },
-  { name: 'Service revenue', value: 18, color: '#14B8A6' },
-  { name: 'Subscriptions', value: 12, color: '#5EEAD4' },
-  { name: 'Other income', value: 4, color: '#99F6E4' },
-  { name: 'Other', value: 11, color: '#CCFBF1' },
-]
-
-const EXPENSE_BY_CATEGORY = [
-  { name: 'Salaries & wages', value: 48, color: '#BE123C' },
-  { name: 'Operating costs', value: 25, color: '#E11D48' },
-  { name: 'Marketing', value: 14, color: '#FB7185' },
-  { name: 'Software & tools', value: 8, color: '#FDA4AF' },
-  { name: 'Other', value: 5, color: '#FECDD3' },
-]
-
-const MONTHLY_FORECAST = [
-  { month: 'January 2024', income: 19800, expense: 14200, net: 5600, confidence: 'High' },
-  { month: 'February 2024', income: 20500, expense: 14800, net: 5700, confidence: 'High' },
-  { month: 'March 2024', income: 21200, expense: 15100, net: 6100, confidence: 'Medium' },
-  { month: 'April 2024', income: 20800, expense: 14900, net: 5900, confidence: 'Medium' },
-  { month: 'May 2024', income: 22100, expense: 15600, net: 6500, confidence: 'High' },
-  { month: 'June 2024', income: 23050, expense: 16230, net: 6820, confidence: 'Low' },
-]
+const INCOME_COLORS = ['#0F766E', '#14B8A6', '#5EEAD4', '#99F6E4', '#CCFBF1']
+const EXPENSE_COLORS = ['#BE123C', '#E11D48', '#FB7185', '#FDA4AF', '#FECDD3']
 
 function formatUsd(n) {
   return new Intl.NumberFormat('en-US', {
@@ -134,12 +114,78 @@ function DonutCard({ title, data, centerLabel, centerSub }) {
 }
 
 export default function FinancialForecast() {
-  const [timeframe, setTimeframe] = React.useState('Next 6 months')
-  const [chartKind, setChartKind] = React.useState('line')
+  const { idToken: token } = useAuth()
+  const [timeframe, setTimeframe] = useState('Next 6 months')
+  const [chartKind, setChartKind] = useState('line')
+
+  const [loading, setLoading] = useState(true)
+  const [chartSeries, setChartSeries] = useState([])
+  const [monthlyForecast, setMonthlyForecast] = useState([])
+  const [totals, setTotals] = useState({ income: 0, expense: 0, net: 0 })
+
+  const [incomeByCategory, setIncomeByCategory] = useState([])
+  const [expenseByCategory, setExpenseByCategory] = useState([])
+
+  useEffect(() => {
+    if (!token) return
+    const loadData = async () => {
+      try {
+        setLoading(true)
+        
+        let monthsAhead = 6
+        if (timeframe === 'This month') monthsAhead = 1
+        if (timeframe === 'Next quarter') monthsAhead = 3
+        if (timeframe === 'Next year') monthsAhead = 12
+        
+        const res = await api(`/api/reports/forecast?monthsAhead=${monthsAhead}`, { token })
+        
+        const combined = [
+          ...(res.historicalData || []).map(d => ({ month: d.month, revenue: d.revenue, expense: d.expenses })),
+          ...(res.forecastData || []).map(d => ({ month: d.month, revenue: d.revenue, expense: d.expenses }))
+        ]
+        setChartSeries(combined)
+
+        const forecastTable = (res.forecastData || []).map(d => ({
+          month: d.month,
+          income: d.revenue,
+          expense: d.expenses,
+          net: d.revenue - d.expenses,
+          confidence: 'High'
+        }))
+        setMonthlyForecast(forecastTable)
+
+        const totalInc = (res.forecastData || []).reduce((acc, cur) => acc + cur.revenue, 0)
+        const totalExp = (res.forecastData || []).reduce((acc, cur) => acc + cur.expenses, 0)
+        setTotals({ income: totalInc, expense: totalExp, net: totalInc - totalExp })
+        
+        // Calculate percentages and add colors
+        const processCategories = (categories, colors, totalAmount) => {
+           if (!categories) return []
+           const total = categories.reduce((acc, cur) => acc + cur.value, 0)
+           if (total === 0) return categories.map((c, i) => ({ ...c, value: 0, color: colors[i % colors.length] }))
+           
+           return categories.map((c, i) => ({
+             name: c.name,
+             value: Math.round((c.value / total) * 100),
+             color: colors[i % colors.length]
+           }))
+        }
+        
+        setIncomeByCategory(processCategories(res.projectedIncomeByCategory, INCOME_COLORS, totalInc))
+        setExpenseByCategory(processCategories(res.projectedExpenseByCategory, EXPENSE_COLORS, totalExp))
+
+      } catch (err) {
+        console.error(err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadData()
+  }, [token, timeframe])
 
   function downloadCsv() {
     const header = ['Month', 'Projected Income', 'Projected Expenses', 'Net Cash Flow', 'Confidence']
-    const rows = MONTHLY_FORECAST.map((r) =>
+    const rows = monthlyForecast.map((r) =>
       [r.month, r.income, r.expense, r.net, r.confidence].join(','),
     )
     const blob = new Blob([[header.join(','), ...rows].join('\n')], { type: 'text/csv;charset=utf-8' })
@@ -154,6 +200,7 @@ export default function FinancialForecast() {
   return (
     <DashboardLayout activeNav="analytics">
       <div className="space-y-6">
+        {loading && <div className="absolute inset-0 bg-white/50 z-10 flex items-center justify-center">Loading...</div>}
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
             <div className="flex flex-wrap items-end gap-4">
@@ -215,7 +262,7 @@ export default function FinancialForecast() {
               <span className="text-[13px] font-semibold text-[#64748B]">Projected income</span>
               <HiOutlineArrowTrendingUp className="h-5 w-5 text-[#0F766E]" />
             </div>
-            <p className="mt-3 text-3xl font-bold tabular-nums text-[#111827]">{formatUsdFull(125450)}</p>
+            <p className="mt-3 text-3xl font-bold tabular-nums text-[#111827]">{formatUsdFull(totals.income)}</p>
             <p className="mt-2 text-[13px] font-semibold text-[#0F766E]">↑ 12.3% vs last period</p>
           </div>
           <div className="rounded-2xl bg-white p-6 shadow-sm">
@@ -223,7 +270,7 @@ export default function FinancialForecast() {
               <span className="text-[13px] font-semibold text-[#64748B]">Projected expenses</span>
               <HiOutlineArrowTrendingDown className="h-5 w-5 text-[#E11D48]" />
             </div>
-            <p className="mt-3 text-3xl font-bold tabular-nums text-[#111827]">{formatUsdFull(87230)}</p>
+            <p className="mt-3 text-3xl font-bold tabular-nums text-[#111827]">{formatUsdFull(totals.expense)}</p>
             <p className="mt-2 text-[13px] font-semibold text-[#E11D48]">↓ 0.9% vs last period</p>
           </div>
           <div className="rounded-2xl bg-white p-6 shadow-sm">
@@ -231,7 +278,7 @@ export default function FinancialForecast() {
               <span className="text-[13px] font-semibold text-[#64748B]">Net cash flow</span>
               <HiOutlineClock className="h-5 w-5 text-[#0F766E]" />
             </div>
-            <p className="mt-3 text-3xl font-bold tabular-nums text-[#111827]">{formatUsdFull(38220)}</p>
+            <p className="mt-3 text-3xl font-bold tabular-nums text-[#111827]">{formatUsdFull(totals.net)}</p>
             <p className="mt-2 text-[13px] font-semibold text-[#0F766E]">↑ 24.6% vs last period</p>
           </div>
         </div>
@@ -263,7 +310,7 @@ export default function FinancialForecast() {
 
           <ResponsiveContainer width="100%" height={320}>
             {chartKind === 'line' ? (
-              <LineChart data={CHART_SERIES}>
+              <LineChart data={chartSeries}>
                 <CartesianGrid strokeDasharray="0" stroke="#F3F4F6" vertical={false} />
                 <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 12 }} />
                 <YAxis
@@ -285,7 +332,7 @@ export default function FinancialForecast() {
                 />
               </LineChart>
             ) : (
-              <BarChart data={CHART_SERIES} barGap={4}>
+              <BarChart data={chartSeries} barGap={4}>
                 <CartesianGrid strokeDasharray="0" stroke="#F3F4F6" vertical={false} />
                 <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 12 }} />
                 <YAxis
@@ -306,14 +353,14 @@ export default function FinancialForecast() {
         <div className="grid grid-cols-2 gap-6">
           <DonutCard
             title="Projected income by category"
-            data={INCOME_BY_CATEGORY}
-            centerLabel="$125k"
+            data={incomeByCategory}
+            centerLabel={formatUsdFull(totals.income)}
             centerSub="total projected"
           />
           <DonutCard
             title="Projected expenses by category"
-            data={EXPENSE_BY_CATEGORY}
-            centerLabel="$87k"
+            data={expenseByCategory}
+            centerLabel={formatUsdFull(totals.expense)}
             centerSub="total projected"
           />
         </div>
@@ -342,7 +389,7 @@ export default function FinancialForecast() {
                 </tr>
               </thead>
               <tbody>
-                {MONTHLY_FORECAST.map((row, i) => (
+                {monthlyForecast.map((row, i) => (
                   <tr key={row.month} className={i % 2 === 1 ? 'bg-[#F9FAFB]/80' : 'bg-white'}>
                     <td className="border-b border-[#F3F4F6] px-4 py-3 font-semibold text-[#111827]">
                       {row.month}

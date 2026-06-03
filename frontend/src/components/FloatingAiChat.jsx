@@ -1,161 +1,419 @@
-import React from 'react'
-import { HiOutlinePaperAirplane, HiOutlineSparkles, HiOutlineXMark } from 'react-icons/hi2'
+import React, { useState, useRef, useEffect } from 'react'
+import {
+  HiOutlinePaperAirplane,
+  HiOutlineSparkles,
+  HiOutlineXMark,
+  HiOutlineDocumentArrowUp,
+  HiOutlineCheckCircle,
+  HiOutlineXCircle,
+  HiOutlinePencilSquare,
+  HiOutlineChatBubbleLeftRight,
+  HiOutlineArrowPath,
+} from 'react-icons/hi2'
+import { useAuth } from '../context/AuthContext'
 
-const QUICK_PROMPTS = ['Summarize my cash position', 'What bills are due?', 'Explain net cash flow']
+const QUICK_PROMPTS = [
+  { emoji: '📊', text: 'What was my revenue last month?' },
+  { emoji: '📋', text: 'Show overdue invoices' },
+  { emoji: '🔮', text: 'Forecast next 3 months expenses' },
+  { emoji: '📄', text: 'Create an invoice for $500' },
+]
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+
+/* ─── Confirmation Card ────────────────────────────────────────────────────── */
+
+function ConfirmationCard({ action, onConfirm, onCancel, onModify }) {
+  if (!action) return null
+  return (
+    <div className="mx-1 my-2 overflow-hidden rounded-2xl border border-[#0F766E]/20 bg-gradient-to-b from-[#F0FDF4] to-white shadow-sm">
+      <div className="flex items-center gap-2 bg-[#0F766E]/5 px-4 py-2.5 border-b border-[#0F766E]/10">
+        <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#0F766E]/10">
+          <HiOutlineSparkles className="h-3.5 w-3.5 text-[#0F766E]" />
+        </div>
+        <span className="text-[12px] font-bold text-[#0F766E] tracking-wide uppercase">Proposed Action</span>
+      </div>
+      <div className="px-4 py-3">
+        <p className="text-[13px] font-semibold text-[#111827] leading-snug">{action.summary}</p>
+        {action.line_items?.length > 0 && (
+          <div className="mt-3 space-y-1.5 rounded-xl bg-[#F9FAFB] p-3 border border-[#E5E7EB]">
+            {action.line_items.map((item, i) => (
+              <div key={i} className="flex justify-between text-[12px] text-[#374151]">
+                <span className="truncate mr-3">{item.description}</span>
+                <span className="font-semibold shrink-0 tabular-nums">${(item.amount || 0).toFixed(2)}</span>
+              </div>
+            ))}
+            <div className="border-t border-[#E5E7EB] pt-2 mt-2 flex justify-between text-[13px] font-bold text-[#111827]">
+              <span>Total</span>
+              <span className="tabular-nums">${(action.total_amount || 0).toFixed(2)}</span>
+            </div>
+          </div>
+        )}
+        <div className="flex gap-2 mt-3">
+          <button
+            onClick={onConfirm}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#0F766E] px-3 py-2.5 text-[12px] font-bold text-white shadow-sm shadow-[#0F766E]/20 hover:bg-[#0d6d66] active:scale-[0.98] transition-all"
+          >
+            <HiOutlineCheckCircle className="h-4 w-4" /> Confirm
+          </button>
+          <button
+            onClick={onModify}
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-white border border-[#E5E7EB] px-3 py-2.5 text-[12px] font-bold text-[#374151] shadow-sm hover:bg-[#F9FAFB] active:scale-[0.98] transition-all"
+          >
+            <HiOutlinePencilSquare className="h-4 w-4" /> Modify
+          </button>
+          <button
+            onClick={onCancel}
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-white border border-[#FEE2E2] px-3 py-2.5 text-[12px] font-bold text-[#DC2626] shadow-sm hover:bg-[#FEF2F2] active:scale-[0.98] transition-all"
+          >
+            <HiOutlineXCircle className="h-4 w-4" /> Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ─── Main Component ───────────────────────────────────────────────────────── */
 
 export default function FloatingAiChat() {
-  const [open, setOpen] = React.useState(false)
-  const [input, setInput] = React.useState('')
-  const [messages, setMessages] = React.useState(() => [
+  const { idToken: token, me, getFreshToken } = useAuth()
+  const [open, setOpen] = useState(false)
+  const [input, setInput] = useState('')
+  const [messages, setMessages] = useState([
     {
       id: 'welcome',
       role: 'assistant',
-      text: 'Hi — I’m your accounting assistant. Ask about invoices, cash flow, or reports.',
+      text: "Hi! I'm your AI Accounting Assistant. I can help create invoices, manage expenses, analyze finances, and forecast trends.\n\nHow can I help you today?",
     },
   ])
-  const listRef = React.useRef(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [threadId, setThreadId] = useState(null)
+  const [pendingAction, setPendingAction] = useState(null)
+  const [selectedFile, setSelectedFile] = useState(null)
+  const listRef = useRef(null)
+  const fileInputRef = useRef(null)
+  const inputRef = useRef(null)
 
-  React.useEffect(() => {
+  const companyId = me?.company?.id || me?.companyId || 1
+
+  useEffect(() => {
     if (!open) return
-    function onKey(e) {
-      if (e.key === 'Escape') setOpen(false)
-    }
+    function onKey(e) { if (e.key === 'Escape') setOpen(false) }
     window.addEventListener('keydown', onKey)
+    // Auto-focus input when opening
+    setTimeout(() => inputRef.current?.focus(), 100)
     return () => window.removeEventListener('keydown', onKey)
   }, [open])
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!open || !listRef.current) return
-    listRef.current.scrollTop = listRef.current.scrollHeight
-  }, [open, messages])
+    listRef.current.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' })
+  }, [open, messages, isLoading])
 
-  function send(text) {
+  async function send(text) {
     const trimmed = (text ?? input).trim()
-    if (!trimmed) return
-    const userId = `u-${Date.now()}`
-    setMessages((prev) => [...prev, { id: userId, role: 'user', text: trimmed }])
+    if (!trimmed && !selectedFile) return
+    if (isLoading) return
+    const freshToken = await getFreshToken()
+    if (!freshToken) return
+    const userText = trimmed || `[Uploaded: ${selectedFile?.name}]`
+    setMessages((prev) => [...prev, { id: `u-${Date.now()}`, role: 'user', text: userText }])
     setInput('')
-    window.setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `a-${Date.now()}`,
-          role: 'assistant',
-          text: 'Thanks for your message. Connect a backend AI service here to return real answers. For now this is a UI preview.',
-        },
-      ])
-    }, 450)
+    setIsLoading(true)
+    try {
+      const formData = new FormData()
+      formData.append('message', userText)
+      formData.append('company_id', companyId.toString())
+      formData.append('auth_token', freshToken)
+      if (threadId) formData.append('thread_id', threadId)
+      if (selectedFile) formData.append('file', selectedFile)
+      const res = await fetch(`${API_BASE}/api/agent/chat`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${freshToken}`, 'X-Company-Id': String(companyId) },
+        body: formData,
+      })
+      const data = await res.json()
+      if (data.thread_id) setThreadId(data.thread_id)
+      setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', text: data.response || 'I processed your request.' }])
+      if (data.requires_confirmation && data.proposed_action) setPendingAction(data.proposed_action)
+    } catch (err) {
+      setMessages((prev) => [...prev, { id: `e-${Date.now()}`, role: 'assistant', text: `Sorry, an error occurred: ${err.message}` }])
+    } finally {
+      setIsLoading(false)
+      setSelectedFile(null)
+    }
+  }
+
+  async function handleConfirm() {
+    if (!threadId) return
+    const freshToken = await getFreshToken()
+    setIsLoading(true)
+    setPendingAction(null)
+    try {
+      const res = await fetch(`${API_BASE}/api/agent/confirm/${threadId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${freshToken}` },
+        body: JSON.stringify({ action: 'confirm' }),
+      })
+      const data = await res.json()
+      setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', text: data.response || 'Action confirmed.' }])
+    } catch (err) {
+      setMessages((prev) => [...prev, { id: `e-${Date.now()}`, role: 'assistant', text: `Error: ${err.message}` }])
+    } finally { setIsLoading(false) }
+  }
+
+  async function handleCancel() {
+    if (!threadId) return
+    const freshToken = await getFreshToken()
+    setIsLoading(true)
+    setPendingAction(null)
+    try {
+      const res = await fetch(`${API_BASE}/api/agent/cancel/${threadId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${freshToken}` },
+      })
+      const data = await res.json()
+      setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', text: data.response || 'Action cancelled.' }])
+    } catch (err) {
+      setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', text: 'Action cancelled.' }])
+    } finally { setIsLoading(false) }
+  }
+
+  function handleModify() {
+    setPendingAction(null)
+    setInput('I want to modify: ')
+    setTimeout(() => inputRef.current?.focus(), 50)
+  }
+
+  function handleNewChat() {
+    setMessages([{
+      id: 'welcome',
+      role: 'assistant',
+      text: "Hi! I'm your AI Accounting Assistant. I can help create invoices, manage expenses, analyze finances, and forecast trends.\n\nHow can I help you today?",
+    }])
+    setThreadId(null)
+    setPendingAction(null)
+    setInput('')
   }
 
   return (
     <>
+      {/* ── Floating Action Button — hidden when drawer is open ───────────── */}
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        className={`fixed bottom-6 right-6 z-100 flex h-14 w-14 items-center justify-center rounded-full bg-[#0F766E] text-white shadow-lg shadow-[#0F766E]/35 transition-transform hover:scale-105 hover:bg-[#0d6d66] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0F766E] focus-visible:ring-offset-2 ${
-          open ? 'scale-95 opacity-90' : ''
+        onClick={() => setOpen(true)}
+        className={`fixed bottom-6 right-6 z-[80] group flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#0F766E] to-[#14B8A6] text-white shadow-xl shadow-[#0F766E]/30 transition-all duration-300 hover:scale-110 hover:shadow-2xl hover:shadow-[#0F766E]/40 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#0F766E]/30 ${
+          open ? 'scale-0 opacity-0 pointer-events-none' : 'scale-100 opacity-100'
         }`}
-        aria-expanded={open}
-        aria-controls="ai-chat-panel"
-        title={open ? 'Close assistant' : 'Open AI assistant'}
+        title="Open AI assistant"
       >
-        {open ? (
-          <HiOutlineXMark className="h-7 w-7" aria-hidden />
-        ) : (
-          <HiOutlineSparkles className="h-7 w-7" aria-hidden />
-        )}
+        <HiOutlineSparkles className="h-6 w-6 transition-transform duration-300 group-hover:rotate-12" />
+        <span className="absolute inset-0 rounded-full animate-ping bg-[#0F766E]/20 pointer-events-none" style={{ animationDuration: '3s' }} />
       </button>
 
-      {open ? (
-        <div
-          id="ai-chat-panel"
-          role="dialog"
-          aria-label="AI accounting assistant"
-          className="fixed bottom-24 right-6 z-100 flex h-[min(520px,calc(100vh-7rem))] w-[min(100vw-1.5rem,400px)] flex-col overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-2xl"
-        >
-          <div className="flex items-center justify-between border-b border-[#E5E7EB] bg-[#CCFBF1] px-4 py-3">
-            <div className="flex items-center gap-2">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#0F766E] text-white">
-                <HiOutlineSparkles className="h-5 w-5" />
-              </span>
+      {/* ── Chat Drawer Backdrop ────────────────────────────────────────── */}
+      <div
+        className={`fixed inset-0 z-[90] bg-[#111827]/20 backdrop-blur-sm transition-opacity duration-300 ${
+          open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        }`}
+        onClick={() => setOpen(false)}
+      />
+
+      {/* ── Chat Drawer ──────────────────────────────────────────────────── */}
+      <div
+        id="ai-chat-panel"
+        role="dialog"
+        aria-label="AI accounting assistant"
+        className={`fixed top-0 right-0 bottom-0 z-[100] flex w-[420px] max-w-full flex-col overflow-hidden bg-white shadow-2xl ring-1 ring-black/[0.05] transition-transform duration-300 ease-in-out ${
+          open ? 'translate-x-0' : 'translate-x-full'
+        }`}
+      >
+        {/* ── Header ──────────────────────────────────────────────────── */}
+        <div className="relative shrink-0 overflow-hidden shadow-sm z-10">
+          <div className="absolute inset-0 bg-gradient-to-br from-[#0F766E] via-[#0d6d66] to-[#14B8A6]" />
+          <div className="absolute -top-6 -right-6 h-24 w-24 rounded-full bg-white/[0.08]" />
+          <div className="absolute -bottom-4 -left-4 h-16 w-16 rounded-full bg-white/[0.06]" />
+
+          <div className="relative flex items-center justify-between px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 backdrop-blur-md ring-1 ring-white/30 shadow-inner">
+                <HiOutlineSparkles className="h-5 w-5 text-white" />
+              </div>
               <div>
-                <p className="text-[15px] font-bold text-[#0F766E]">AI Assistant</p>
-                <p className="text-[11px] font-medium text-[#64748B]">Accounting &amp; finance help</p>
+                <h3 className="text-[16px] font-bold text-white tracking-tight">AI Assistant</h3>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-300 animate-pulse" />
+                  <p className="text-[12px] font-medium text-white/80">Gemini 2.5 Flash</p>
+                </div>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="rounded-lg p-2 text-[#64748B] hover:bg-white/80 hover:text-[#111827]"
-              aria-label="Close chat"
-            >
-              <HiOutlineXMark className="h-5 w-5" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={handleNewChat}
+                className="rounded-lg p-2 text-white/70 hover:bg-white/20 hover:text-white transition-all active:scale-95"
+                title="New conversation"
+              >
+                <HiOutlineArrowPath className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="rounded-lg p-2 text-white/70 hover:bg-white/20 hover:text-white transition-all active:scale-95"
+                aria-label="Close chat"
+              >
+                <HiOutlineXMark className="h-6 w-6" />
+              </button>
+            </div>
           </div>
+        </div>
 
-          <div
-            ref={listRef}
-            className="flex-1 space-y-3 overflow-y-auto bg-[#F9FAFB] p-4"
-          >
+        {/* ── Messages ────────────────────────────────────────────────── */}
+        <div
+          ref={listRef}
+          className="flex-1 overflow-y-auto bg-[#FAFBFC] px-5 py-5"
+          style={{ backgroundImage: 'radial-gradient(circle at 50% 0%, rgba(15,118,110,0.03) 0%, transparent 50%)' }}
+        >
+          <div className="space-y-4">
             {messages.map((m) =>
               m.role === 'user' ? (
-                <div key={m.id} className="flex justify-end">
-                  <div className="max-w-[85%] rounded-2xl rounded-br-md bg-[#0F766E] px-3 py-2 text-[13px] font-medium text-white">
+                <div key={m.id} className="flex justify-end animate-[fadeSlideUp_0.25s_ease-out]">
+                  <div className="max-w-[85%] rounded-2xl rounded-br-lg bg-gradient-to-br from-[#0F766E] to-[#0d6d66] px-4 py-3 text-[14px] font-medium text-white shadow-md shadow-[#0F766E]/20">
                     {m.text}
                   </div>
                 </div>
               ) : (
-                <div key={m.id} className="flex justify-start">
-                  <div className="max-w-[90%] rounded-2xl rounded-bl-md border border-[#E5E7EB] bg-white px-3 py-2 text-[13px] leading-relaxed text-[#374151]">
-                    {m.text}
+                <div key={m.id} className="flex justify-start gap-3 animate-[fadeSlideUp_0.25s_ease-out]">
+                  <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#0F766E]/10 to-[#14B8A6]/10 ring-1 ring-[#0F766E]/20 shadow-sm">
+                    <HiOutlineSparkles className="h-4 w-4 text-[#0F766E]" />
+                  </div>
+                  <div className="max-w-[85%] rounded-2xl rounded-bl-lg bg-white px-4 py-3 text-[14px] leading-relaxed text-[#374151] shadow-sm ring-1 ring-black/[0.06]">
+                    {m.text.split('\n').map((line, i) => (
+                      <p key={i} className={i > 0 ? 'mt-2' : ''}>{line || '\u00A0'}</p>
+                    ))}
                   </div>
                 </div>
-              ),
+              )
             )}
-            {messages.length === 1 ? (
-              <div className="flex flex-wrap gap-2 pt-1">
+
+            {/* Quick prompts */}
+            {messages.length === 1 && (
+              <div className="grid grid-cols-2 gap-3 pt-3">
                 {QUICK_PROMPTS.map((q) => (
                   <button
-                    key={q}
+                    key={q.text}
                     type="button"
-                    onClick={() => send(q)}
-                    className="rounded-full border border-[#0F766E]/30 bg-white px-3 py-1.5 text-left text-[12px] font-semibold text-[#0F766E] hover:bg-[#CCFBF1]"
+                    onClick={() => send(q.text)}
+                    className="flex flex-col items-start gap-2 rounded-2xl border border-[#E5E7EB] bg-white p-4 text-left text-[13px] font-medium text-[#374151] shadow-sm ring-1 ring-black/[0.02] hover:border-[#0F766E]/40 hover:bg-[#F0FDF4] hover:text-[#0F766E] hover:shadow-md active:scale-[0.98] transition-all duration-200"
                   >
-                    {q}
+                    <span className="text-[20px] leading-none bg-[#F9FAFB] p-2 rounded-xl border border-[#E5E7EB]">{q.emoji}</span>
+                    <span className="leading-snug mt-1">{q.text}</span>
                   </button>
                 ))}
               </div>
-            ) : null}
-          </div>
+            )}
 
-          <div className="border-t border-[#E5E7EB] bg-white p-3">
-            <div className="relative flex items-end gap-2">
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    send()
-                  }
-                }}
-                placeholder="Ask anything…"
-                rows={2}
-                className="min-h-[44px] flex-1 resize-none rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] px-3 py-2.5 text-[13px] text-[#111827] placeholder-[#9CA3AF] focus:border-[#0F766E] focus:outline-none focus:ring-1 focus:ring-[#0F766E]"
+            {/* Typing indicator */}
+            {isLoading && (
+              <div className="flex justify-start gap-3 animate-[fadeSlideUp_0.2s_ease-out]">
+                <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#0F766E]/10 to-[#14B8A6]/10 ring-1 ring-[#0F766E]/20 shadow-sm">
+                  <HiOutlineSparkles className="h-4 w-4 text-[#0F766E] animate-spin" style={{ animationDuration: '2s' }} />
+                </div>
+                <div className="rounded-2xl rounded-bl-lg bg-white px-4 py-3 shadow-sm ring-1 ring-black/[0.06] flex items-center gap-1.5 h-[46px]">
+                  <span className="w-1.5 h-1.5 bg-[#0F766E]/50 rounded-full animate-bounce" style={{ animationDelay: '0ms', animationDuration: '1s' }} />
+                  <span className="w-1.5 h-1.5 bg-[#0F766E]/50 rounded-full animate-bounce" style={{ animationDelay: '200ms', animationDuration: '1s' }} />
+                  <span className="w-1.5 h-1.5 bg-[#0F766E]/50 rounded-full animate-bounce" style={{ animationDelay: '400ms', animationDuration: '1s' }} />
+                </div>
+              </div>
+            )}
+
+            {pendingAction && (
+              <ConfirmationCard
+                action={pendingAction}
+                onConfirm={handleConfirm}
+                onCancel={handleCancel}
+                onModify={handleModify}
               />
-              <button
-                type="button"
-                onClick={() => send()}
-                className="mb-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#0F766E] text-white hover:bg-[#0F766E]/90"
-                aria-label="Send message"
-              >
-                <HiOutlinePaperAirplane className="h-5 w-5" />
-              </button>
-            </div>
-            <p className="mt-2 text-center text-[10px] text-[#9CA3AF]">Powered by AI · Preview</p>
+            )}
           </div>
         </div>
-      ) : null}
+
+        {/* ── File preview bar ─────────────────────────────────────────── */}
+        {selectedFile && (
+          <div className="flex items-center gap-3 border-t border-[#E5E7EB] bg-[#F9FAFB] px-5 py-3 shadow-inner">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#0F766E]/10 ring-1 ring-[#0F766E]/20">
+              <HiOutlineDocumentArrowUp className="h-5 w-5 text-[#0F766E]" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="truncate text-[13px] font-bold text-[#374151]">{selectedFile.name}</p>
+              <p className="text-[11px] font-medium text-[#6B7280]">File attached</p>
+            </div>
+            <button
+              onClick={() => setSelectedFile(null)}
+              className="rounded-xl p-2 text-[#9CA3AF] hover:bg-[#E5E7EB] hover:text-[#111827] transition-colors"
+            >
+              <HiOutlineXMark className="h-5 w-5" />
+            </button>
+          </div>
+        )}
+
+        {/* ── Input bar ────────────────────────────────────────────────── */}
+        <div className="shrink-0 border-t border-[#E5E7EB] bg-white px-5 py-4 z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.02)]">
+          <div className="flex items-end gap-2.5">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.pdf"
+              className="hidden"
+              onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="mb-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[#6B7280] bg-[#F3F4F6] hover:bg-[#E5E7EB] hover:text-[#0F766E] transition-colors"
+              title="Upload invoice image or PDF"
+            >
+              <HiOutlineDocumentArrowUp className="h-5 w-5" />
+            </button>
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  send()
+                }
+              }}
+              placeholder="Message AI Assistant…"
+              rows={1}
+              className="min-h-[46px] max-h-[140px] flex-1 resize-none rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] px-4 py-3 text-[14px] text-[#111827] placeholder-[#9CA3AF] focus:border-[#0F766E] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#0F766E]/10 transition-all shadow-inner"
+              disabled={isLoading}
+            />
+            <button
+              type="button"
+              onClick={() => send()}
+              disabled={isLoading || (!input.trim() && !selectedFile)}
+              className="mb-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#0F766E] text-white shadow-md shadow-[#0F766E]/25 hover:bg-[#0d6d66] hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-40 disabled:shadow-none disabled:hover:translate-y-0 active:scale-95 transition-all"
+              aria-label="Send message"
+            >
+              <HiOutlinePaperAirplane className="h-5 w-5 -ml-0.5" />
+            </button>
+          </div>
+          <p className="mt-3 text-center text-[11px] font-medium text-[#9CA3AF]">
+            Powered by <span className="font-semibold">Gemini 2.5 Flash</span> · LangGraph
+          </p>
+        </div>
+      </div>
+
+      {/* ── CSS animations ──────────────────────────────────────────────── */}
+      <style>{`
+        @keyframes fadeSlideUp {
+          from { opacity: 0; transform: translateY(12px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </>
   )
 }

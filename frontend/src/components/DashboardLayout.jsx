@@ -65,7 +65,7 @@ export default function DashboardLayout({ children, activeNav = 'dashboard' }) {
         { key: 'payments', label: 'Payments', onClick: () => navigate('/payments') },
       ]
     },
-    { key: 'reports', icon: HiOutlineChartBar, label: 'Reports', onClick: () => {} },
+    { key: 'reports', icon: HiOutlineChartBar, label: 'Reports', onClick: () => navigate('/reports') },
     { key: 'bank', icon: HiOutlineCreditCard, label: 'Bank Account', onClick: () => navigate('/bank') },
     { key: 'accounts', icon: HiOutlineBookOpen, label: 'Chart of Accounts', onClick: () => navigate('/accounts') },
     { key: 'quick', icon: HiOutlineSparkles, label: 'Quick Action', onClick: () => navigate('/quick') },
@@ -94,9 +94,9 @@ export default function DashboardLayout({ children, activeNav = 'dashboard' }) {
   const userEmail = firebaseUser.email || '—'
 
   return (
-    <div className="w-full min-h-screen min-w-[1200px] flex bg-[#F9FAFB]">
+    <div className="w-full h-screen min-w-[1200px] flex bg-[#F9FAFB] overflow-hidden">
       <div
-        className="min-h-full bg-white flex flex-col transition-all duration-300 shadow-[0px_2px_8px_rgba(0,0,0,0.08)]"
+        className="h-full bg-white flex flex-col transition-all duration-300 shadow-[0px_2px_8px_rgba(0,0,0,0.08)] z-10 shrink-0"
         style={{ width: sidebarCollapsed ? '88px' : '280px' }}
       >
         {!sidebarCollapsed ? (
@@ -126,7 +126,7 @@ export default function DashboardLayout({ children, activeNav = 'dashboard' }) {
           </div>
         )}
 
-        <nav className="flex-1 px-4 py-2">
+        <nav className="flex-1 px-4 py-2 overflow-y-auto">
           <div className="flex flex-col gap-1">
             {navItems.map((item) => (
               <div key={item.key} className="relative group">
@@ -259,8 +259,8 @@ export default function DashboardLayout({ children, activeNav = 'dashboard' }) {
         )}
       </div>
 
-      <div className="flex-1 flex flex-col min-h-full min-w-0">
-        <header className="min-h-[72px] bg-white flex items-center justify-between px-6 shadow-sm">
+      <div className="flex-1 flex flex-col h-full min-w-0 bg-[#F9FAFB]">
+        <header className="min-h-[72px] bg-white flex items-center justify-between px-6 shadow-sm z-10 shrink-0">
           <div className="flex items-center gap-4 min-w-0">
             <button
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -280,7 +280,7 @@ export default function DashboardLayout({ children, activeNav = 'dashboard' }) {
           </div>
         </header>
 
-        <main className="flex-1 p-6 min-w-0">{children}</main>
+        <main className="flex-1 p-6 min-w-0 overflow-y-auto">{children}</main>
       </div>
 
       <FloatingAiChat />

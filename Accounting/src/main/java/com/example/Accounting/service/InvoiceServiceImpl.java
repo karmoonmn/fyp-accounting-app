@@ -73,7 +73,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .totalCredit(total)
                 .build();
 
-        journalEntryRepo.save(journalEntry);
+        journalEntryService.saveJournalEntry(journalEntry);
 
         debitLine.setJournalEntry(journalEntry);
         creditLine.setJournalEntry(journalEntry);
@@ -145,8 +145,8 @@ public class InvoiceServiceImpl implements InvoiceService {
                 invoice.getTotalAmt().subtract(invoice.getBalance()) : BigDecimal.ZERO;
         
         BigDecimal newBalance = total.subtract(amountPaid);
-        if (newBalance.compareTo(BigDecimal.ZERO) < 0) {
-            newBalance = BigDecimal.ZERO;
+        if (amountPaid.compareTo(total) > 0) {
+            throw new AccountingException(ErrorCode.INVALID_PAYMENT_AMOUNT, "Cannot reduce invoice total below the amount already paid.");
         }
 
         invoice.setTotalAmt(total);
@@ -165,23 +165,32 @@ public class InvoiceServiceImpl implements InvoiceService {
         // Sync journal entry
         Optional<JournalEntry> jeOpt = journalEntryRepo.findByDocNumberAndCompanyId("JE-" + oldDocNumber, companyId);
         if (jeOpt.isPresent()) {
-            JournalEntry journalEntry = jeOpt.get();
-            journalEntry.setDocNumber("JE-" + req.getDocNumber());
-            journalEntry.setTxnDate(req.getTxnDate());
-            journalEntry.setTotalDebit(total);
-            journalEntry.setTotalCredit(total);
-
-            List<JournalLine> lines = journalEntry.getLines();
-            for (JournalLine jl : lines) {
-                if (jl.getDebit() != null && jl.getDebit().compareTo(BigDecimal.ZERO) > 0) {
-                    jl.setDebit(total);
-                } else if (jl.getCredit() != null && jl.getCredit().compareTo(BigDecimal.ZERO) > 0) {
-                    jl.setCredit(total);
-                }
-                journalEntryLineRepo.save(jl);
-            }
-            journalEntryRepo.save(journalEntry);
+            journalEntryRepo.delete(jeOpt.get());
         }
+
+        Account arAccount = accountRepo.findByNameAndCompanyId("Accounts Receivable", companyId)
+                .orElseThrow(() -> new AccountingException(ErrorCode.ACCOUNT_NOT_FOUND, "Accounts Receivable account not found"));
+
+        Account salesAccount = accountRepo.findByNameAndCompanyId("Sales", companyId)
+                .orElseThrow(() -> new AccountingException(ErrorCode.ACCOUNT_NOT_FOUND, "Sales account not found"));
+
+        JournalLine debitLine = journalEntryService.createJournalLine(arAccount, true, total, 1, null);
+        JournalLine creditLine = journalEntryService.createJournalLine(salesAccount, false, total, 2, null);
+
+        JournalEntry journalEntry = JournalEntry.builder()
+                .company(invoice.getCompany())
+                .lines(Arrays.asList(debitLine, creditLine))
+                .docNumber("JE-" + req.getDocNumber())
+                .txnDate(req.getTxnDate())
+                .totalDebit(total)
+                .totalCredit(total)
+                .build();
+
+        journalEntryService.saveJournalEntry(journalEntry);
+
+        debitLine.setJournalEntry(journalEntry);
+        creditLine.setJournalEntry(journalEntry);
+        journalEntryLineRepo.saveAll(Arrays.asList(debitLine, creditLine));
 
         return invoice;
     }
@@ -191,6 +200,10 @@ public class InvoiceServiceImpl implements InvoiceService {
         Long companyId = SecurityUtils.requireCompanyId();
         Invoice invoice = invoiceRepo.findByIdAndCompanyId(id, companyId)
                 .orElseThrow(() -> new AccountingException(ErrorCode.INVOICE_NOT_FOUND));
+
+        if (invoice.getStatus() == TransactionStatus.PARTIALLY_PAID || invoice.getStatus() == TransactionStatus.PAID) {
+            throw new AccountingException(ErrorCode.INVALID_PAYMENT_AMOUNT, "Cannot delete an invoice that has payments allocated to it.");
+        }
 
         String docNumber = invoice.getDocNumber();
 
@@ -221,7 +234,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             BigDecimal currentBalance = invoice.getBalance() != null ? invoice.getBalance() : invoice.getTotalAmt();
             BigDecimal newBalance = currentBalance.subtract(item.getAmount());
             if (newBalance.compareTo(BigDecimal.ZERO) < 0) {
-                newBalance = BigDecimal.ZERO;
+                throw new AccountingException(ErrorCode.INVALID_PAYMENT_AMOUNT, "Payment amount cannot exceed the remaining invoice balance.");
             }
 
             invoice.setBalance(newBalance);
@@ -295,7 +308,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                     .totalCredit(totalPaymentAmount)
                     .build();
 
-            journalEntryRepo.save(journalEntry);
+            journalEntryService.saveJournalEntry(journalEntry);
 
             debitLine.setJournalEntry(journalEntry);
             creditLine.setJournalEntry(journalEntry);

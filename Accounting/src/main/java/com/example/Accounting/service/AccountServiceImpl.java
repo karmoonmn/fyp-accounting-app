@@ -135,7 +135,14 @@ public class AccountServiceImpl implements AccountService {
             throw new RuntimeException("Unauthorized");
         }
 
-        account.setName(req.getName());
+        if (!account.getName().equals(req.getName())) {
+            String oldName = account.getName();
+            if (oldName.equalsIgnoreCase("Bank") || oldName.equalsIgnoreCase("Sales") || 
+                oldName.equalsIgnoreCase("Accounts Receivable") || oldName.equalsIgnoreCase("Accounts Payable")) {
+                throw new IllegalArgumentException("Cannot rename system default accounts");
+            }
+            account.setName(req.getName());
+        }
         
         if (req.getAccountType() != null) {
             account.setAccountType(req.getAccountType());

@@ -1,4 +1,6 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
+import { api } from '../api'
+import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import {
   HiOutlineArrowTrendingUp,
@@ -22,22 +24,69 @@ import DashboardLayout from '../components/DashboardLayout'
 
 export default function MainDashboard() {
   const navigate = useNavigate()
+  const { idToken: token } = useAuth()
 
-  const chartData = [
-    { month: 'Jan', revenue: 45000, expense: 32000 },
-    { month: 'Feb', revenue: 52000, expense: 38000 },
-    { month: 'Mar', revenue: 48000, expense: 35000 },
-    { month: 'Apr', revenue: 61000, expense: 42000 },
-    { month: 'May', revenue: 55000, expense: 39000 },
-    { month: 'Jun', revenue: 67000, expense: 45000 },
-  ]
+  const [chartData, setChartData] = useState([])
+  const [summaryCards, setSummaryCards] = useState([
+    { label: 'Total Income', amount: '$0', trend: 'Loading...', trendUp: true },
+    { label: 'Total Expenses', amount: '$0', trend: 'Loading...', trendUp: true },
+    { label: 'Bank Balance', amount: '$0', trend: 'Loading...', trendUp: true },
+    { label: 'Overdue Bills', amount: '0', trend: 'Loading...', trendUp: false, highlight: true },
+  ])
 
-  const summaryCards = [
-    { label: 'Total Income', amount: '$250,000', trend: '+12.5% from last month', trendUp: true },
-    { label: 'Total Expenses', amount: '$120,000', trend: '+8.2% from last month', trendUp: true },
-    { label: 'Bank Balance', amount: '$150,000', trend: '+5.1% from last month', trendUp: true },
-    { label: 'Overdue Bills', amount: '5', trend: '2 bills need attention', trendUp: false, highlight: true },
-  ]
+  useEffect(() => {
+    if (!token) return;
+    const loadDashboard = async () => {
+      try {
+        const forecastRes = await api('/api/reports/forecast', { token })
+        
+        const mappedChart = forecastRes.historicalData.map(d => ({
+          month: d.month,
+          revenue: d.revenue,
+          expense: d.expenses
+        }))
+        setChartData(mappedChart)
+        
+        const lastMonth = forecastRes.historicalData[forecastRes.historicalData.length - 1] || { revenue: 0, expenses: 0 }
+        const prevMonth = forecastRes.historicalData[forecastRes.historicalData.length - 2] || { revenue: 0, expenses: 0 }
+        
+        const calcTrend = (curr, prev) => {
+          if (prev === 0) return '+0.0%'
+          const pct = ((curr - prev) / prev) * 100
+          return `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`
+        }
+        
+        const incTrend = calcTrend(lastMonth.revenue, prevMonth.revenue)
+        const expTrend = calcTrend(lastMonth.expenses, prevMonth.expenses)
+        
+        const formatMoney = (v) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v)
+
+        const dateStr = new Date().toISOString().split('T')[0]
+        let bankBalance = 0
+        try {
+          const bs = await api(`/api/reports/balance-sheet?endDate=${dateStr}`, { token })
+          const bankAcc = bs.assets.find(a => a.accountCode.startsWith('10'))
+          if (bankAcc) bankBalance = bankAcc.balance
+        } catch (e) {}
+
+        let overdueCount = 0
+        try {
+          const bills = await api('/api/bills', { token })
+          overdueCount = bills.filter(b => b.status === 'OVERDUE' || (b.status === 'UNPAID' && new Date(b.dueDate) < new Date())).length
+        } catch (e) {}
+
+        setSummaryCards([
+          { label: 'Total Income', amount: formatMoney(lastMonth.revenue), trend: `${incTrend} from last month`, trendUp: !incTrend.startsWith('-') },
+          { label: 'Total Expenses', amount: formatMoney(lastMonth.expenses), trend: `${expTrend} from last month`, trendUp: expTrend.startsWith('-') }, // For expenses, down is positive visually but let's keep green for up for now, actually down is better so trendUp true if negative
+          { label: 'Bank Balance', amount: formatMoney(bankBalance), trend: 'Current standing', trendUp: true },
+          { label: 'Overdue Bills', amount: String(overdueCount), trend: overdueCount > 0 ? `${overdueCount} bills need attention` : 'All caught up', trendUp: false, highlight: overdueCount > 0 },
+        ])
+      } catch (err) {
+        console.error(err)
+      }
+    }
+    loadDashboard()
+  }, [token])
 
   const aiInsights = [
     {

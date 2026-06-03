@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { HiOutlineChevronDown, HiCheck } from 'react-icons/hi2'
 
-export default function CustomSelect({ value, onChange, options, placeholder = "Select...", className = "", buttonClassName = "h-11" }) {
+export default function CustomSelect({ value, onChange, options, placeholder = "Select...", className = "", buttonClassName = "h-11", onCreateNew }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
@@ -67,6 +67,20 @@ export default function CustomSelect({ value, onChange, options, placeholder = "
             <div className="px-3 py-3 text-center text-[13px] text-[#9CA3AF]">
               No options available
             </div>
+          )}
+          {onCreateNew && (
+            <button
+              type="button"
+              className="flex w-full cursor-pointer items-center justify-center rounded-lg border border-dashed border-[#0F766E]/30 bg-[#F0FDF4]/50 px-3 py-2.5 mt-1 text-[13px] font-bold text-[#0F766E] transition-colors hover:bg-[#F0FDF4] hover:border-[#0F766E]"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onCreateNew()
+                setOpen(false)
+              }}
+            >
+              + Create new
+            </button>
           )}
         </div>
       )}

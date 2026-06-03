@@ -110,7 +110,7 @@ public class PaymentServiceImpl implements PaymentService {
                 BigDecimal currentBalance = invoice.getBalance() != null ? invoice.getBalance() : invoice.getTotalAmt();
                 BigDecimal newBalance = currentBalance.subtract(item.getAmount());
                 if (newBalance.compareTo(BigDecimal.ZERO) < 0) {
-                    newBalance = BigDecimal.ZERO;
+                    throw new AccountingException(ErrorCode.INVALID_PAYMENT_AMOUNT, "Payment amount cannot exceed the remaining invoice balance.");
                 }
 
                 invoice.setBalance(newBalance);
@@ -131,7 +131,7 @@ public class PaymentServiceImpl implements PaymentService {
                 BigDecimal currentBalance = bill.getBalance() != null ? bill.getBalance() : bill.getTotalAmt();
                 BigDecimal newBalance = currentBalance.subtract(item.getAmount());
                 if (newBalance.compareTo(BigDecimal.ZERO) < 0) {
-                    newBalance = BigDecimal.ZERO;
+                    throw new AccountingException(ErrorCode.INVALID_PAYMENT_AMOUNT, "Payment amount cannot exceed the remaining bill balance.");
                 }
 
                 bill.setBalance(newBalance);
@@ -203,7 +203,7 @@ public class PaymentServiceImpl implements PaymentService {
                     }
                     journalEntryLineRepo.save(jl);
                 }
-                journalEntryRepo.save(journalEntry);
+                journalEntryService.saveJournalEntry(journalEntry);
             }
         } else if (totalPaymentAmount.compareTo(BigDecimal.ZERO) > 0) {
             // Recreate journal entry if it was missing
@@ -252,7 +252,7 @@ public class PaymentServiceImpl implements PaymentService {
                     .totalCredit(totalPaymentAmount)
                     .build();
 
-            journalEntryRepo.save(journalEntry);
+            journalEntryService.saveJournalEntry(journalEntry);
 
             debitLine.setJournalEntry(journalEntry);
             creditLine.setJournalEntry(journalEntry);

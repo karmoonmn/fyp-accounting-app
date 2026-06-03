@@ -11,6 +11,8 @@ import QuickAction from './pages/QuickAction'
 import Dashboard from './pages/Dashboard'
 import InvoiceList from './pages/InvoiceList'
 import MainDashboard from './pages/MainDashboard'
+import FinancialReports from './pages/reports/FinancialReports'
+
 import Login from './pages/Login'
 import Register from './pages/Register'
 import RegisterCompany from './pages/RegisterCompany'
@@ -34,6 +36,7 @@ export default function App() {
           <Route path="/bill/payment" element={<BillPayment />} />
           <Route path="/bank" element={<BankAccountHistory />} />
           <Route path="/analytics" element={<FinancialForecast />} />
+          <Route path="/reports" element={<FinancialReports />} />
           <Route path="/quick" element={<QuickAction />} />
           <Route path="/invoice/new" element={<CreateInvoice />} />
           <Route path="/invoice/edit/:id" element={<CreateInvoice />} />

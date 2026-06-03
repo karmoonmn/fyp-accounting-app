@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { HiOutlinePlus, HiOutlineTrash, HiOutlineXMark } from 'react-icons/hi2'
 import CustomSelect from '../components/CustomSelect'
 import FormSkeleton from '../components/FormSkeleton'
+import QuickCreateSupplierModal from '../components/QuickCreateSupplierModal'
+import QuickCreateAccountModal from '../components/QuickCreateAccountModal'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../api'
 
@@ -36,6 +38,9 @@ export default function CreateBill() {
   const [initialLoading, setInitialLoading] = useState(true)
   const [accounts, setAccounts] = useState([])
   const [suppliers, setSuppliers] = useState([])
+  const [showSupplierModal, setShowSupplierModal] = useState(false)
+  const [showAccountModal, setShowAccountModal] = useState(false)
+  const [activeLineIndex, setActiveLineIndex] = useState(null)
 
   useEffect(() => {
     if (!me || meError) return
@@ -266,6 +271,7 @@ export default function CreateBill() {
                     placeholder="Select a supplier"
                     className="mt-1"
                     buttonClassName="h-11"
+                    onCreateNew={() => setShowSupplierModal(true)}
                   />
                 </label>
                 <label className="col-span-2 text-[13px] font-semibold text-[#374151]">
@@ -298,7 +304,7 @@ export default function CreateBill() {
                   <thead>
                     <tr className="border-b border-[#E5E7EB] bg-[#FAFAFA] text-[11px] font-bold uppercase tracking-wide text-[#6B7280]">
                       <th className="px-4 py-3 w-12 rounded-tl-xl">#</th>
-                      <th className="px-4 py-3 w-[240px]">Account</th>
+                      <th className="px-4 py-3 w-[360px]">Account</th>
                       <th className="px-4 py-3">Description</th>
                       <th className="px-4 py-3 w-40 text-right">Amount</th>
                       <th className="px-4 py-3 w-16 rounded-tr-xl" />
@@ -317,11 +323,15 @@ export default function CreateBill() {
                               onChange={(val) => updateLine(index, { accountId: val })}
                               options={accounts.map((acc) => ({
                                 value: acc.id,
-                                label: `${acc.name} (${acc.accountType})`
+                                label: acc.name
                               }))}
                               placeholder="Choose an account"
                               className=""
                               buttonClassName="h-10"
+                              onCreateNew={() => {
+                                setActiveLineIndex(index)
+                                setShowAccountModal(true)
+                              }}
                             />
                           </td>
                           <td className="border-b border-[#F3F4F6] px-4 py-3">
@@ -427,6 +437,26 @@ export default function CreateBill() {
           </div>
         </div>
       </div>
+
+      <QuickCreateSupplierModal 
+        isOpen={showSupplierModal} 
+        onClose={() => setShowSupplierModal(false)}
+        onSuccess={(newSupplier) => {
+          setSuppliers(prev => [...prev, newSupplier])
+          setSupplierId(newSupplier.id.toString())
+        }}
+      />
+      
+      <QuickCreateAccountModal
+        isOpen={showAccountModal}
+        onClose={() => setShowAccountModal(false)}
+        onSuccess={(newAccount) => {
+          setAccounts(prev => [...prev, newAccount])
+          if (activeLineIndex !== null) {
+            updateLine(activeLineIndex, { accountId: newAccount.id.toString() })
+          }
+        }}
+      />
     </div>
   )
 }
