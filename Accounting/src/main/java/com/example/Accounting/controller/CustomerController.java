@@ -35,9 +35,17 @@ public class CustomerController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Customer>> getAllCustomers(
+    public ResponseEntity<List<java.util.Map<String, Object>>> getAllCustomers(
             @RequestHeader("X-Company-Id") Long companyId) {
-        List<Customer> customers = customerService.getAllCustomers(companyId);
+        List<java.util.Map<String, Object>> customers = customerService.getAllCustomers(companyId).stream().map(c -> {
+            java.util.Map<String, Object> m = new java.util.HashMap<>();
+            m.put("id", c.getId());
+            m.put("name", c.getName());
+            m.put("email", c.getEmail());
+            m.put("phone", c.getPhoneNum());
+            m.put("addr", c.getAddr());
+            return m;
+        }).toList();
         return ResponseEntity.ok(customers);
     }
 

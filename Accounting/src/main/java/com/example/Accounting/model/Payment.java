@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 @Entity
+@org.hibernate.annotations.BatchSize(size = 100)
 @Data
 @SuperBuilder
 @NoArgsConstructor

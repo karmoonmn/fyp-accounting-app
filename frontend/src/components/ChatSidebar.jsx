@@ -129,7 +129,7 @@ export default function ChatSidebar({ isOpen, onClose }) {
       if (threadId) formData.append('thread_id', threadId)
       if (selectedFile) formData.append('file', selectedFile)
 
-      const res = await fetch(`http://localhost:8080/api/agent/chat`, {
+      const res = await fetch(`http://127.0.0.1:8080/api/agent/chat`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'X-Company-Id': String(companyId) },
         body: formData,
@@ -155,7 +155,7 @@ export default function ChatSidebar({ isOpen, onClose }) {
     setIsLoading(true)
     setPendingAction(null)
     try {
-      const res = await fetch(`http://localhost:8080/api/agent/confirm/${threadId}`, {
+      const res = await fetch(`http://127.0.0.1:8080/api/agent/confirm/${threadId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -177,7 +177,7 @@ export default function ChatSidebar({ isOpen, onClose }) {
     setIsLoading(true)
     setPendingAction(null)
     try {
-      const res = await fetch(`http://localhost:8080/api/agent/cancel/${threadId}`, {
+      const res = await fetch(`http://127.0.0.1:8080/api/agent/cancel/${threadId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

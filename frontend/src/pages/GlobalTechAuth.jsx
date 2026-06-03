@@ -454,6 +454,24 @@ function RegisterPage({ onSwitch }) {
   async function onSubmit(e) {
     e.preventDefault()
     setError('')
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/
+    const isValidEmail = (email) => {
+      if (!email) return false
+      if (!emailRegex.test(email)) return false
+      if (email.toLowerCase().endsWith('.com.com')) return false
+      return true
+    }
+
+    if (!isValidEmail(adminEmail)) {
+      setError('Please enter a valid admin email address')
+      return
+    }
+    if (companyEmail && !isValidEmail(companyEmail)) {
+      setError('Please enter a valid company email address')
+      return
+    }
+
     if (password !== confirmPassword) {
       setError('Passwords do not match')
       return

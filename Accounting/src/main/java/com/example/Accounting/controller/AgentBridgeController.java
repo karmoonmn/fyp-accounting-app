@@ -23,7 +23,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AgentBridgeController {
 
-    @Value("${agent.service.url:http://localhost:8002}")
+    @Value("${agent.service.url:http://127.0.0.1:8002}")
     private String agentServiceUrl;
 
     private final RestTemplate restTemplate = new RestTemplate();

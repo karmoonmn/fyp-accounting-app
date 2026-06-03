@@ -23,6 +23,20 @@ export default function RegisterUser() {
     e.preventDefault()
     setError('')
     setSuccess('')
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/
+    const isValidEmail = (email) => {
+      if (!email) return false
+      if (!emailRegex.test(email)) return false
+      if (email.toLowerCase().endsWith('.com.com')) return false
+      return true
+    }
+
+    if (!isValidEmail(email)) {
+      setError('Please enter a valid email address')
+      return
+    }
+
     setBusy(true)
     try {
       const token = await getFreshToken()

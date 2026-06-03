@@ -18,7 +18,7 @@ public class ForecastMlClient {
     private final RestTemplate restTemplate;
     
     // In production, this would be injected via application.yml
-    private final String mlServiceUrl = "http://localhost:8001/predict";
+    private final String mlServiceUrl = "http://127.0.0.1:8001/predict";
 
     public ForecastMlClient() {
         this.restTemplate = new RestTemplate();

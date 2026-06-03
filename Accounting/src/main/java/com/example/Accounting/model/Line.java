@@ -25,8 +25,9 @@ public class Line {
     private BigDecimal unitPrice;
     private BigDecimal amount;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "account_id")
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private Account account;
 
     @ManyToOne

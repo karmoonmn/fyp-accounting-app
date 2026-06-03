@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Entity
+@org.hibernate.annotations.BatchSize(size = 100)
 @Data
 @AllArgsConstructor
 @NoArgsConstructor

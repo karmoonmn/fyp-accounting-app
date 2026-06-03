@@ -138,11 +138,17 @@ export default function CreateInvoice() {
     }
     setBusy(true)
     try {
-      const parsedLines = lines.map((row, i) => {
+      // Filter out line items with 0 price
+      const validLines = lines.filter(row => {
+        const unitPrice = Number.parseFloat(row.unitPrice)
+        return Number.isFinite(unitPrice) && unitPrice !== 0
+      })
+
+      const parsedLines = validLines.map((row, i) => {
         const quantity = Number.parseFloat(row.quantity)
         const unitPrice = Number.parseFloat(row.unitPrice)
         if (!Number.isFinite(quantity) || !Number.isFinite(unitPrice)) {
-          throw new Error(`Line ${i + 1}: invalid quantity or unit price`)
+          throw new Error(`Line ${row.lineNum || i + 1}: invalid quantity or unit price`)
         }
         return {
           lineNum: i + 1,
@@ -151,6 +157,16 @@ export default function CreateInvoice() {
           unitPrice,
         }
       })
+
+      if (parsedLines.length === 0) {
+        throw new Error('Cannot create invoice without any valid line items (price must not be 0)')
+      }
+
+      const totalAmount = parsedLines.reduce((sum, row) => sum + (row.quantity * row.unitPrice), 0)
+      if (totalAmount === 0) {
+        throw new Error('Cannot create an invoice with a total amount of 0')
+      }
+
       const token = await getFreshToken()
       if (!token) throw new Error('Not signed in')
       const body = {
