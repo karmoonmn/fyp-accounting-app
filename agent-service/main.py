@@ -113,9 +113,10 @@ async def chat(
         elif ext == "pdf":
             input_type = "pdf"
 
-    # Build initial state
+    # Build initial state — only include fields relevant to THIS turn.
+    # Do NOT set persistent fields (pending_intent, pending_context, etc.)
+    # to None — that would overwrite the checkpointed values.
     initial_state = {
-        "messages": [HumanMessage(content=message)],
         "user_input": message,
         "input_type": input_type,
         "file_bytes": file_bytes,
@@ -123,17 +124,15 @@ async def chat(
         "company_id": company_id,
         "auth_token": auth_token,
         "thread_id": tid,
+        # Reset per-turn transient fields
         "classification": None,
         "classification_confidence": None,
         "extracted_data": None,
         "proposed_action": None,
         "confirmation_status": None,
-        "modification_payload": None,
-        "sub_queries": None,
-        "query_results": None,
-        "sql_queries": None,
         "final_response": None,
-        "response_metadata": None,
+        # NOTE: pending_intent, pending_context are intentionally OMITTED
+        # so they survive across turns via the checkpointer.
     }
 
     config = {"configurable": {"thread_id": tid}}

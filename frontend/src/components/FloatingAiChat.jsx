@@ -88,7 +88,7 @@ export default function FloatingAiChat() {
     },
   ])
   const [isLoading, setIsLoading] = useState(false)
-  const [threadId, setThreadId] = useState(null)
+  const [threadId, setThreadId] = useState(() => localStorage.getItem('ai_thread_id') || null)
   const [pendingAction, setPendingAction] = useState(null)
   const [selectedFile, setSelectedFile] = useState(null)
   const listRef = useRef(null)
@@ -110,6 +110,47 @@ export default function FloatingAiChat() {
     if (!open || !listRef.current) return
     listRef.current.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' })
   }, [open, messages, isLoading])
+
+  // Fetch history on initial load if we have a threadId
+  useEffect(() => {
+    async function fetchHistory() {
+      if (!threadId) return
+      try {
+        const res = await fetch(`${API_BASE}/api/agent/history/${threadId}`, {
+          headers: { 'X-Company-Id': String(companyId) },
+        })
+        if (!res.ok) return
+        const data = await res.json()
+        if (data.messages && data.messages.length > 0) {
+          // Format messages for UI, filtering out duplicates
+          const uniqueMsgs = []
+          const seen = new Set()
+          data.messages.forEach((m, i) => {
+            const key = `${m.role}-${m.content}`
+            if (!seen.has(key)) {
+              seen.add(key)
+              uniqueMsgs.push({
+                id: `hist-${i}`,
+                role: m.role,
+                text: m.content
+              })
+            }
+          })
+          setMessages([
+            {
+              id: 'welcome',
+              role: 'assistant',
+              text: "Hi! I'm your AI Accounting Assistant. I can help create invoices, manage expenses, analyze finances, and forecast trends.\n\nHow can I help you today?",
+            },
+            ...uniqueMsgs
+          ])
+        }
+      } catch (err) {
+        console.error("Failed to load chat history", err)
+      }
+    }
+    fetchHistory()
+  }, [])
 
   async function send(text) {
     const trimmed = (text ?? input).trim()
@@ -134,7 +175,10 @@ export default function FloatingAiChat() {
         body: formData,
       })
       const data = await res.json()
-      if (data.thread_id) setThreadId(data.thread_id)
+      if (data.thread_id) {
+        setThreadId(data.thread_id)
+        localStorage.setItem('ai_thread_id', data.thread_id)
+      }
       setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', text: data.response || 'I processed your request.' }])
       if (data.requires_confirmation && data.proposed_action) setPendingAction(data.proposed_action)
     } catch (err) {
@@ -193,6 +237,7 @@ export default function FloatingAiChat() {
       text: "Hi! I'm your AI Accounting Assistant. I can help create invoices, manage expenses, analyze finances, and forecast trends.\n\nHow can I help you today?",
     }])
     setThreadId(null)
+    localStorage.removeItem('ai_thread_id')
     setPendingAction(null)
     setInput('')
   }

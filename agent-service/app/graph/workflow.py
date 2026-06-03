@@ -14,6 +14,7 @@ from langgraph.types import interrupt, Command
 from app.models.state import AgentState
 from app.agents.preprocess import preprocess_node
 from app.agents.classifier import classification_agent
+from app.agents.context_router import context_router
 from app.agents.invoice_agent import invoice_agent
 from app.agents.expense_agent import expense_agent
 from app.agents.rag_agent import rag_agent
@@ -156,6 +157,15 @@ async def human_confirmation_node(state: AgentState) -> dict:
 # ── Routing Functions ─────────────────────────────────────────────────────────
 
 
+def route_after_context_router(state: AgentState) -> str:
+    """After context_router: skip classifier if classification is already set."""
+    if state.get("classification"):
+        # context_router decided CONTINUE and injected the classification
+        return "route_to_agent"
+    # No pending task, or NEW_INTENT — run the classifier
+    return "classifier"
+
+
 def route_classification(state: AgentState) -> str:
     """Route based on classification result."""
     classification = state.get("classification", "OUT_OF_SCOPE")
@@ -206,6 +216,7 @@ def build_graph() -> StateGraph:
 
     # ── Add nodes ─────────────────────────────────────────────
     graph.add_node("preprocess", preprocess_node)
+    graph.add_node("context_router", context_router)
     graph.add_node("classifier", classification_agent)
     graph.add_node("invoice_agent", invoice_agent)
     graph.add_node("expense_agent", expense_agent)
@@ -219,9 +230,33 @@ def build_graph() -> StateGraph:
 
     # ── Edges ─────────────────────────────────────────────────
     graph.add_edge(START, "preprocess")
-    graph.add_edge("preprocess", "classifier")
+    graph.add_edge("preprocess", "context_router")
 
-    # Classification routing
+    # Context router decides: skip classifier (CONTINUE) or run it (NEW_INTENT)
+    graph.add_conditional_edges(
+        "context_router",
+        route_after_context_router,
+        {
+            "classifier": "classifier",
+            "route_to_agent": "route_to_agent",
+        },
+    )
+
+    # Dummy pass-through node for routing from context_router CONTINUE path
+    graph.add_node("route_to_agent", lambda state: {})
+    graph.add_conditional_edges(
+        "route_to_agent",
+        route_classification,
+        {
+            "invoice_agent": "invoice_agent",
+            "expense_agent": "expense_agent",
+            "rag_agent": "rag_agent",
+            "analytics_agent": "analytics_agent",
+            "out_of_scope": "out_of_scope",
+        },
+    )
+
+    # Classification routing (normal path)
     graph.add_conditional_edges(
         "classifier",
         route_classification,

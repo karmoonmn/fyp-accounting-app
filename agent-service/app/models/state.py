@@ -61,3 +61,7 @@ class AgentState(TypedDict):
     company_id: int
     auth_token: str
     thread_id: str
+
+    # ── Multi-Turn Memory ─────────────────────────────────────
+    pending_intent: Optional[str]             # e.g. "INVOICE_PROCESS" when awaiting details
+    pending_context: Optional[dict[str, Any]] # partially collected data from prior turns

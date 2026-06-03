@@ -3,6 +3,9 @@
 Parses the user's intent (create / read / update / delete), extracts
 required fields using Gemini, and builds a ProposedAction for
 human-in-the-loop confirmation before committing.
+
+Enhanced with Tool Calling: the agent can autonomously look up customers,
+invoices, and accounts via bound tools.
 """
 
 from __future__ import annotations
@@ -18,6 +21,8 @@ from app.clients import spring_boot_client
 from app.config import settings
 from app.models.actions import ProposedAction, LineItemAction
 from app.models.state import AgentState
+from app.tools.accounting_tools import INVOICE_TOOLS
+from app.tools.tool_executor import run_agent_with_tools
 
 logger = logging.getLogger(__name__)
 
@@ -26,26 +31,31 @@ You are an Invoice Management Agent for an accounting system.
 
 Your job is to help the user create, view, update, or delete invoices.
 
+You have access to tools to look up customers, invoices, and accounts.
+USE the tools to resolve customer names to IDs and look up invoice details
+rather than asking the user for IDs.
+
 When the user wants to CREATE an invoice, extract:
 - docNumber (invoice number)
 - txnDate (transaction date, default to today if not specified, format: YYYY-MM-DD)
 - dueDate (optional, format: YYYY-MM-DD)
-- customerId or customerName
-- shipAddr (optional)
+- customerId or customerName (use search_customers tool to resolve names to IDs)
 - lines: list of {description, quantity, unitPrice}
 
-When the user wants to VIEW invoices, list or fetch specific ones.
+When the user wants to VIEW invoices, use the list_all_invoices or
+get_invoice_details tools to fetch the data, then present it clearly.
+
 When the user wants to DELETE, confirm the invoice ID.
 
 If extracted_data from a document upload is available, use it directly.
 
-Respond as a JSON object with:
+Once you have gathered enough information, respond as a JSON object with:
 {
   "action": "create" | "list" | "get" | "update" | "delete",
   "data": { ... extracted fields ... }
 }
 
-If information is missing, ask the user for it.
+If information is still missing after using tools, ask the user for it.
 """
 
 
@@ -60,6 +70,9 @@ def _get_model() -> ChatGoogleGenerativeAI:
 async def invoice_agent(state: AgentState) -> dict[str, Any]:
     """
     Process invoice-related requests.
+
+    Uses tool calling to autonomously resolve customer names, look up
+    invoice details, and fetch account information.
 
     For read operations → responds immediately.
     For write operations → builds a ProposedAction for confirmation.
@@ -80,8 +93,15 @@ async def invoice_agent(state: AgentState) -> dict[str, Any]:
             SystemMessage(content=f"Extracted document data:\n{json.dumps(extracted, indent=2)}")
         )
 
-    response = await model.ainvoke(messages)
-    content = response.content
+    # Run the tool-calling loop — the model may call search_customers,
+    # list_all_invoices, etc. before producing a final response
+    content, messages = await run_agent_with_tools(
+        model=model,
+        tools=INVOICE_TOOLS,
+        messages=messages,
+        token=token,
+        company_id=company_id,
+    )
 
     # Try to parse structured response
     try:
@@ -91,6 +111,8 @@ async def invoice_agent(state: AgentState) -> dict[str, Any]:
         return {
             "final_response": content,
             "messages": [AIMessage(content=content)],
+            "pending_intent": "INVOICE_PROCESS",
+            "pending_context": {"awaiting": "user_details"},
         }
 
     action = parsed.get("action", "").lower()
@@ -103,6 +125,8 @@ async def invoice_agent(state: AgentState) -> dict[str, Any]:
         return {
             "final_response": summary,
             "messages": [AIMessage(content=summary)],
+            "pending_intent": None,
+            "pending_context": None,
         }
 
     if action == "get":
@@ -132,16 +156,20 @@ async def invoice_agent(state: AgentState) -> dict[str, Any]:
 
         total = sum(li.amount for li in line_items)
 
-        # Try to resolve customer
+        # The model should have already resolved customer via tools,
+        # but fall back to manual lookup if needed
         customer_name = data.get("customerName", data.get("customer_name", ""))
         customer_id = data.get("customerId", data.get("customer_id"))
 
         if customer_name and not customer_id:
-            customers = await spring_boot_client.list_customers(token, company_id)
-            for c in customers:
-                if c.get("name", "").lower() == customer_name.lower():
-                    customer_id = c["id"]
-                    break
+            try:
+                customers = await spring_boot_client.list_customers(token, company_id)
+                for c in customers:
+                    if c.get("name", "").lower() == customer_name.lower():
+                        customer_id = c["id"]
+                        break
+            except Exception:
+                pass  # Best-effort — the user can confirm/modify later
 
         proposed = ProposedAction(
             action_type="CREATE_INVOICE",
@@ -172,6 +200,8 @@ async def invoice_agent(state: AgentState) -> dict[str, Any]:
             "confirmation_status": "pending",
             "final_response": confirmation_msg,
             "messages": [AIMessage(content=confirmation_msg)],
+            "pending_intent": None,
+            "pending_context": None,
         }
 
     if action == "delete":
