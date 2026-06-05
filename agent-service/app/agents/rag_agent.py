@@ -17,10 +17,11 @@ from typing import Any
 from langchain_core.messages import AIMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from app.config import settings
+from app.config import settings, get_api_key
 from app.models.state import AgentState
 from app.tools.accounting_tools import RAG_TOOLS
 from app.tools.tool_executor import run_agent_with_tools
+from app.utils.message_trimmer import prepare_messages_for_llm
 
 logger = logging.getLogger(__name__)
 
@@ -61,8 +62,9 @@ Today's date is {today}. Use this for default date calculations.
 def _get_model() -> ChatGoogleGenerativeAI:
     return ChatGoogleGenerativeAI(
         model=settings.gemini_model,
-        google_api_key=settings.google_api_key,
+        google_api_key=get_api_key(),
         temperature=0.1,
+        max_retries=0,
     )
 
 
@@ -81,10 +83,11 @@ async def rag_agent(state: AgentState) -> dict[str, Any]:
     today = date.today().isoformat()
     system_prompt = RAG_SYSTEM_PROMPT.replace("{today}", today)
 
-    messages = [
-        SystemMessage(content=system_prompt),
-        *state["messages"],
-    ]
+    messages = prepare_messages_for_llm(
+        system_prompt=system_prompt,
+        state_messages=state["messages"],
+        conversation_summary=state.get("conversation_summary"),
+    )
 
     # Run the tool-calling loop — the model autonomously decides
     # which reports to query and synthesises the final answer
@@ -94,6 +97,7 @@ async def rag_agent(state: AgentState) -> dict[str, Any]:
         messages=messages,
         token=token,
         company_id=company_id,
+        model_factory=_get_model,
     )
 
     # Count how many tools were called for metadata

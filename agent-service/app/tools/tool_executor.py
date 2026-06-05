@@ -18,11 +18,34 @@ from typing import Any
 from langchain_core.messages import AIMessage, ToolMessage
 
 from app.clients import spring_boot_client
+from app.utils.llm_retry import invoke_with_retry
 
 logger = logging.getLogger(__name__)
 
 # Maximum tool-call iterations to prevent infinite loops
 MAX_TOOL_ITERATIONS = 5
+
+
+def extract_text_content(content) -> str:
+    """Extract plain text from model response content.
+
+    Gemini can return content as:
+    - A plain string: "Hello world"
+    - A list of parts: [{'type': 'text', 'text': 'Hello', 'extras': {...}}]
+
+    This function normalises both to a plain string.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        text_parts = []
+        for part in content:
+            if isinstance(part, dict):
+                text_parts.append(part.get("text", ""))
+            elif isinstance(part, str):
+                text_parts.append(part)
+        return "\n".join(p for p in text_parts if p)
+    return str(content) if content else ""
 
 
 # ── Tool Execution Dispatch ───────────────────────────────────────────────────
@@ -128,6 +151,7 @@ async def run_agent_with_tools(
     token: str,
     company_id: int,
     max_iterations: int = MAX_TOOL_ITERATIONS,
+    model_factory=None,
 ) -> tuple[str, list]:
     """
     Run the LLM ↔ tool-call loop.
@@ -146,22 +170,32 @@ async def run_agent_with_tools(
         Company ID for Spring Boot API calls.
     max_iterations : int
         Safety cap on tool-call rounds.
+    model_factory : callable, optional
+        A function that returns a fresh model (with a new API key).
+        Used for key rotation on retry. If None, retries with same model.
 
     Returns
     -------
     tuple[str, list]
         (final_text_response, updated_messages_list)
     """
-    bound_model = model.bind_tools(tools)
-
     for iteration in range(max_iterations):
-        response: AIMessage = await bound_model.ainvoke(messages)
+        # Use call_factory so each retry gets a fresh model + key
+        if model_factory:
+            response: AIMessage = await invoke_with_retry(
+                call_factory=lambda: model_factory().bind_tools(tools).ainvoke(messages)
+            )
+        else:
+            bound_model = model.bind_tools(tools)
+            response: AIMessage = await invoke_with_retry(
+                call_factory=lambda: bound_model.ainvoke(messages)
+            )
         messages.append(response)
 
         # If no tool calls → the model produced a final text answer
         if not response.tool_calls:
             logger.info("Tool loop finished after %d iteration(s)", iteration + 1)
-            return response.content, messages
+            return extract_text_content(response.content), messages
 
         # Process each tool call
         logger.info(
@@ -185,5 +219,5 @@ async def run_agent_with_tools(
 
     # Safety: if we hit max iterations, return whatever we have
     logger.warning("Tool loop hit max iterations (%d)", max_iterations)
-    last_content = messages[-1].content if messages else "I was unable to complete the request."
+    last_content = extract_text_content(messages[-1].content) if messages else "I was unable to complete the request."
     return last_content, messages

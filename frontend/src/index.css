@@ -44,3 +44,14 @@
       radial-gradient(900px 500px at 0% 100%, rgba(16, 185, 129, 0.08), transparent 55%);
   }
 }
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

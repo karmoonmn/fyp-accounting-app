@@ -65,3 +65,4 @@ class AgentState(TypedDict):
     # ── Multi-Turn Memory ─────────────────────────────────────
     pending_intent: Optional[str]             # e.g. "INVOICE_PROCESS" when awaiting details
     pending_context: Optional[dict[str, Any]] # partially collected data from prior turns
+    conversation_summary: Optional[str]       # compressed summary of older messages

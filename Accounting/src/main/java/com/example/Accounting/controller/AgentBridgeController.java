@@ -36,7 +36,7 @@ public class AgentBridgeController {
             @RequestParam("message") String message,
             @RequestHeader("X-Company-Id") Long companyId,
             @RequestHeader("Authorization") String authHeader,
-            @RequestParam(value = "threadId", required = false) String threadId,
+            @RequestParam(value = "thread_id", required = false) String threadId,
             @RequestParam(value = "file", required = false) MultipartFile file) {
 
         String token = authHeader.replace("Bearer ", "");

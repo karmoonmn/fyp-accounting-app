@@ -13,6 +13,7 @@ from langchain_core.messages import AIMessage
 
 from app.models.state import AgentState
 from app.security.pii_masker import unmask_pii
+from app.tools.tool_executor import extract_text_content
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ async def response_checker(state: AgentState) -> dict[str, Any]:
     2. Check for leaked PII placeholders
     3. Ensure we have a non-empty response
     """
-    response = state.get("final_response", "")
+    response = extract_text_content(state.get("final_response", ""))
     metadata = state.get("response_metadata") or {}
     pii_mapping = metadata.get("pii_mapping", {})
 

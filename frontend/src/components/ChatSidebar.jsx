@@ -11,6 +11,19 @@ import {
 import { api } from '../api'
 import { useAuth } from '../context/AuthContext'
 
+function formatMarkdown(text) {
+  if (!text) return ''
+  return text
+    // Bold: **text** → <strong>text</strong>
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    // Inline code: `text` → <code>text</code>
+    .replace(/`([^`]+)`/g, '<code style="background:#E5E7EB;padding:1px 5px;border-radius:4px;font-size:12px">$1</code>')
+    // Bullet points: lines starting with * or • or - (after bold is already processed)
+    .replace(/^[\*•\-]\s+(.*)$/gm, '<div style="padding-left:12px">• $1</div>')
+    // Line breaks
+    .replace(/\n/g, '<br/>')
+}
+
 function MessageBubble({ message }) {
   const isUser = message.role === 'user'
   return (
@@ -22,11 +35,7 @@ function MessageBubble({ message }) {
             : 'bg-[#F3F4F6] text-[#111827] rounded-bl-md'
         }`}
       >
-        {message.content.split('\n').map((line, i) => (
-          <p key={i} className={i > 0 ? 'mt-1.5' : ''}>
-            {line.replace(/\*\*(.*?)\*\*/g, (_, text) => text)}
-          </p>
-        ))}
+        <div dangerouslySetInnerHTML={{ __html: formatMarkdown(message.content) }} />
       </div>
     </div>
   )
@@ -208,7 +217,7 @@ export default function ChatSidebar({ isOpen, onClose }) {
           </div>
           <div>
             <h3 className="text-[15px] font-bold text-white">AI Assistant</h3>
-            <p className="text-[11px] font-medium text-white/70">Powered by Gemini 2.5 Flash</p>
+            {/*<p className="text-[11px] font-medium text-white/70">Powered by Gemini 2.5 Flash</p>*/}
           </div>
         </div>
         <button

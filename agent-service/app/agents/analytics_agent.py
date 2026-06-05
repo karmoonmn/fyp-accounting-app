@@ -15,8 +15,10 @@ from langchain_core.messages import AIMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from app.clients import ml_client, spring_boot_client
-from app.config import settings
+from app.config import settings, get_api_key
 from app.models.state import AgentState
+from app.utils.message_trimmer import prepare_messages_for_llm
+from app.utils.llm_retry import invoke_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +49,9 @@ Office Expense, Operating Expense, Non-operating Expense.
 def _get_model() -> ChatGoogleGenerativeAI:
     return ChatGoogleGenerativeAI(
         model=settings.gemini_model,
-        google_api_key=settings.google_api_key,
+        google_api_key=get_api_key(),
         temperature=0.1,
+        max_retries=0,
     )
 
 
@@ -59,12 +62,15 @@ async def analytics_agent(state: AgentState) -> dict[str, Any]:
     company_id = state["company_id"]
 
     # Step 1: Determine what forecasts to run
-    messages = [
-        SystemMessage(content=ANALYTICS_SYSTEM_PROMPT),
-        *state["messages"],
-    ]
+    messages = prepare_messages_for_llm(
+        system_prompt=ANALYTICS_SYSTEM_PROMPT,
+        state_messages=state["messages"],
+        conversation_summary=state.get("conversation_summary"),
+    )
 
-    response = await model.ainvoke(messages)
+    response = await invoke_with_retry(
+        call_factory=lambda: _get_model().ainvoke(messages)
+    )
 
     try:
         plan = _extract_json(response.content)

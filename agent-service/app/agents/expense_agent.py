@@ -17,11 +17,12 @@ from langchain_core.messages import AIMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from app.clients import spring_boot_client
-from app.config import settings
+from app.config import settings, get_api_key
 from app.models.actions import ProposedAction, LineItemAction
 from app.models.state import AgentState
 from app.tools.accounting_tools import EXPENSE_TOOLS
 from app.tools.tool_executor import run_agent_with_tools
+from app.utils.message_trimmer import prepare_messages_for_llm
 
 logger = logging.getLogger(__name__)
 
@@ -64,8 +65,9 @@ If information is still missing after using tools, ask the user for it.
 def _get_model() -> ChatGoogleGenerativeAI:
     return ChatGoogleGenerativeAI(
         model=settings.gemini_model,
-        google_api_key=settings.google_api_key,
+        google_api_key=get_api_key(),
         temperature=0.1,
+        max_retries=0,
     )
 
 
@@ -76,10 +78,11 @@ async def expense_agent(state: AgentState) -> dict[str, Any]:
     company_id = state["company_id"]
     extracted = state.get("extracted_data")
 
-    messages = [
-        SystemMessage(content=EXPENSE_SYSTEM_PROMPT),
-        *state["messages"],
-    ]
+    messages = prepare_messages_for_llm(
+        system_prompt=EXPENSE_SYSTEM_PROMPT,
+        state_messages=state["messages"],
+        conversation_summary=state.get("conversation_summary"),
+    )
 
     if extracted:
         messages.append(
@@ -93,6 +96,7 @@ async def expense_agent(state: AgentState) -> dict[str, Any]:
         messages=messages,
         token=token,
         company_id=company_id,
+        model_factory=_get_model,
     )
 
     try:

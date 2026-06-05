@@ -18,8 +18,10 @@ from typing import Any
 from langchain_core.messages import SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from app.config import settings
+from app.config import settings, get_api_key
 from app.models.state import AgentState
+from app.utils.message_trimmer import prepare_messages_for_llm
+from app.utils.llm_retry import invoke_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +48,9 @@ Respond with EXACTLY one word: CONTINUE or NEW_INTENT
 def _get_model() -> ChatGoogleGenerativeAI:
     return ChatGoogleGenerativeAI(
         model=settings.gemini_model,
-        google_api_key=settings.google_api_key,
+        google_api_key=get_api_key(),
         temperature=0.0,
+        max_retries=0,
     )
 
 
@@ -66,6 +69,11 @@ async def context_router(state: AgentState) -> dict[str, Any]:
     """
     pending = state.get("pending_intent")
 
+    logger.info(
+        "Context router check — pending_intent=%s, pending_context=%s",
+        pending, state.get("pending_context"),
+    )
+
     # No pending task → nothing to decide, let classifier handle it
     if not pending:
         return {}
@@ -78,12 +86,15 @@ async def context_router(state: AgentState) -> dict[str, Any]:
         pending_context=pending_ctx or "None",
     )
 
-    messages = [
-        SystemMessage(content=prompt),
-        *state["messages"],
-    ]
+    messages = prepare_messages_for_llm(
+        system_prompt=prompt,
+        state_messages=state["messages"],
+        conversation_summary=state.get("conversation_summary"),
+    )
 
-    response = await model.ainvoke(messages)
+    response = await invoke_with_retry(
+        call_factory=lambda: _get_model().ainvoke(messages)
+    )
     decision = response.content.strip().upper()
 
     # Normalise — accept slight variations like "CONTINUE." or "New Intent"

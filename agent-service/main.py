@@ -155,9 +155,22 @@ async def chat(
 
     except Exception as e:
         logger.exception("Agent chat failed")
+        error_str = str(e)
+        if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+            user_msg = (
+                "⏳ The AI service is temporarily rate-limited. "
+                "Please wait about 30 seconds and try again."
+            )
+        elif "503" in error_str or "UNAVAILABLE" in error_str:
+            user_msg = (
+                "⏳ The AI service is experiencing high demand. "
+                "Please try again in a few seconds."
+            )
+        else:
+            user_msg = f"Sorry, I encountered an error: {error_str}"
         return ChatResponse(
             thread_id=tid,
-            response=f"Sorry, I encountered an error: {str(e)}",
+            response=user_msg,
             requires_confirmation=False,
         )
 

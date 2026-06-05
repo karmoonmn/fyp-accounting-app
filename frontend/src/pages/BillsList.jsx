@@ -181,14 +181,14 @@ export default function BillsList() {
         <div className="rounded-2xl bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] px-4 text-[13px] font-semibold text-[#111827] hover:bg-[#F3F4F6]"
-              >
-                Batch actions
-                <HiOutlineChevronDown className="h-4 w-4 text-[#6B7280]" />
-              </button>
-              <SelectShell label="Type" value="All transactions" />
+              {/*<button*/}
+              {/*  type="button"*/}
+              {/*  className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] px-4 text-[13px] font-semibold text-[#111827] hover:bg-[#F3F4F6]"*/}
+              {/*>*/}
+              {/*  Batch actions*/}
+              {/*  <HiOutlineChevronDown className="h-4 w-4 text-[#6B7280]" />*/}
+              {/*</button>*/}
+              {/*<SelectShell label="Type" value="All transactions" />*/}
               <SelectShell label="Date" value="Last 3 months" />
               <div className="relative">
                 <HiOutlineMagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
@@ -201,15 +201,15 @@ export default function BillsList() {
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex flex-wrap items-center gap-4 text-[13px] font-semibold text-[#0F766E]">
-                <button type="button" className="hover:underline">
-                  All statuses
-                </button>
-                <button type="button" className="hover:underline">
-                  Payment method
-                </button>
-                <button type="button" className="hover:underline">
-                  Attachments
-                </button>
+                {/*<button type="button" className="hover:underline">*/}
+                {/*  All statuses*/}
+                {/*</button>*/}
+                {/*<button type="button" className="hover:underline">*/}
+                {/*  Payment method*/}
+                {/*</button>*/}
+                {/*<button type="button" className="hover:underline">*/}
+                {/*  Attachments*/}
+                {/*</button>*/}
               </div>
               <button
                 type="button"
@@ -217,33 +217,33 @@ export default function BillsList() {
                 className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#0F766E] px-5 text-[14px] font-bold text-white shadow-sm hover:bg-[#0F766E]/90"
               >
                 New transaction
-                <HiOutlineChevronDown className="h-4 w-4" />
+                {/*<HiOutlineChevronDown className="h-4 w-4" />*/}
               </button>
             </div>
           </div>
 
           <div className="mt-2 flex justify-end gap-2 border-b border-[#E5E7EB] pb-2">
-            <button
-              type="button"
-              className="rounded-lg p-2 text-[#64748B] hover:bg-[#F9FAFB] hover:text-[#111827]"
-              title="Print"
-            >
-              <HiOutlinePrinter className="h-5 w-5" />
-            </button>
-            <button
-              type="button"
-              className="rounded-lg p-2 text-[#64748B] hover:bg-[#F9FAFB] hover:text-[#111827]"
-              title="Export"
-            >
-              <HiOutlineArrowUpTray className="h-5 w-5" />
-            </button>
-            <button
-              type="button"
-              className="rounded-lg p-2 text-[#64748B] hover:bg-[#F9FAFB] hover:text-[#111827]"
-              title="Settings"
-            >
-              <HiOutlineCog6Tooth className="h-5 w-5" />
-            </button>
+            {/*<button*/}
+            {/*  type="button"*/}
+            {/*  className="rounded-lg p-2 text-[#64748B] hover:bg-[#F9FAFB] hover:text-[#111827]"*/}
+            {/*  title="Print"*/}
+            {/*>*/}
+            {/*  <HiOutlinePrinter className="h-5 w-5" />*/}
+            {/*</button>*/}
+            {/*<button*/}
+            {/*  type="button"*/}
+            {/*  className="rounded-lg p-2 text-[#64748B] hover:bg-[#F9FAFB] hover:text-[#111827]"*/}
+            {/*  title="Export"*/}
+            {/*>*/}
+            {/*  <HiOutlineArrowUpTray className="h-5 w-5" />*/}
+            {/*</button>*/}
+            {/*<button*/}
+            {/*  type="button"*/}
+            {/*  className="rounded-lg p-2 text-[#64748B] hover:bg-[#F9FAFB] hover:text-[#111827]"*/}
+            {/*  title="Settings"*/}
+            {/*>*/}
+            {/*  <HiOutlineCog6Tooth className="h-5 w-5" />*/}
+            {/*</button>*/}
           </div>
 
           <div className="overflow-x-auto">

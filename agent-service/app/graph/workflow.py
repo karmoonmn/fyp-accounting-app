@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import logging
 
+from langchain_core.messages import SystemMessage
+
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import interrupt, Command
 
@@ -23,6 +25,7 @@ from app.agents.validation_agent import validation_agent
 from app.agents.out_of_scope import out_of_scope_agent
 from app.agents.response_checker import response_checker
 from app.clients import spring_boot_client
+from app.utils.message_trimmer import trim_messages_for_llm
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +114,49 @@ def _build_bill_payload(proposed: dict) -> dict:
         "memo": proposed.get("memo"),
         "lines": lines,
     }
+
+
+# ── Trim History Node — compress old messages to keep LLM context small ───────
+
+
+async def trim_history_node(state: AgentState) -> dict:
+    """
+    Compute a conversation summary if the message history is getting long.
+
+    NOTE: We do NOT mutate state["messages"] here because it uses the
+    ``add_messages`` reducer (append-only). Instead, we compute a
+    ``conversation_summary`` that agents can inject into their local
+    message lists via ``prepare_messages_for_llm()``.
+    """
+    messages = state.get("messages", [])
+    existing_summary = state.get("conversation_summary")
+
+    # Only summarize if we have more than MAX_RECENT messages
+    from app.utils.message_trimmer import MAX_RECENT_MESSAGES
+    convo_msgs = [m for m in messages if not isinstance(m, SystemMessage)]
+
+    if len(convo_msgs) <= MAX_RECENT_MESSAGES:
+        return {}
+
+    # We need to summarize the older messages
+    from app.utils.message_trimmer import _find_safe_split_point, _summarize_messages
+    split_at = _find_safe_split_point(convo_msgs, len(convo_msgs) - MAX_RECENT_MESSAGES)
+    old_msgs = convo_msgs[:split_at]
+
+    if not old_msgs:
+        return {}
+
+    if existing_summary:
+        old_msgs_with_context = [
+            SystemMessage(content=f"Previous summary: {existing_summary}")
+        ] + old_msgs
+        new_summary = await _summarize_messages(old_msgs_with_context)
+    else:
+        new_summary = await _summarize_messages(old_msgs)
+
+    logger.info("Generated conversation summary (%d chars)", len(new_summary))
+
+    return {"conversation_summary": new_summary}
 
 
 # ── Human-in-the-Loop Node ───────────────────────────────────────────────────
@@ -216,6 +262,7 @@ def build_graph() -> StateGraph:
 
     # ── Add nodes ─────────────────────────────────────────────
     graph.add_node("preprocess", preprocess_node)
+    graph.add_node("trim_history", trim_history_node)
     graph.add_node("context_router", context_router)
     graph.add_node("classifier", classification_agent)
     graph.add_node("invoice_agent", invoice_agent)
@@ -230,7 +277,8 @@ def build_graph() -> StateGraph:
 
     # ── Edges ─────────────────────────────────────────────────
     graph.add_edge(START, "preprocess")
-    graph.add_edge("preprocess", "context_router")
+    graph.add_edge("preprocess", "trim_history")
+    graph.add_edge("trim_history", "context_router")
 
     # Context router decides: skip classifier (CONTINUE) or run it (NEW_INTENT)
     graph.add_conditional_edges(

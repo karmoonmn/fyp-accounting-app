@@ -12,6 +12,6 @@ public interface BillRepo extends JpaRepository<Bill, Long> {
     List<Bill> findAllByCompanyId(Long companyId);
     Optional<Bill> findByIdAndCompanyId(Long id, Long companyId);
 
-    @org.springframework.data.jpa.repository.Query("SELECT b FROM Bill b WHERE b.company.id = :companyId AND b.status != 'PAID' AND b.balance > 0")
+    @org.springframework.data.jpa.repository.Query("SELECT b FROM Bill b WHERE b.company.id = :companyId AND (b.status IS NULL OR b.status != com.example.Accounting.model.TransactionStatus.PAID) AND b.balance > 0")
     List<Bill> findUnpaidBillsByCompanyId(@org.springframework.data.repository.query.Param("companyId") Long companyId);
 }

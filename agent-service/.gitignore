@@ -27,3 +27,4 @@ checkpoints/
 
 # macOS
 .DS_Store
+*.db*

@@ -13,9 +13,11 @@ from typing import Any
 from langchain_core.messages import SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from app.config import settings
+from app.config import settings, get_api_key
 from app.models.classification import ClassificationResult
 from app.models.state import AgentState
+from app.utils.message_trimmer import prepare_messages_for_llm
+from app.utils.llm_retry import invoke_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +48,9 @@ Be decisive. Always pick the most specific category.
 def _get_model() -> ChatGoogleGenerativeAI:
     return ChatGoogleGenerativeAI(
         model=settings.gemini_model,
-        google_api_key=settings.google_api_key,
+        google_api_key=get_api_key(),
         temperature=0.0,
+        max_retries=0,  # Disable SDK retry — our invoke_with_retry handles it
     )
 
 
@@ -59,15 +62,15 @@ async def classification_agent(state: AgentState) -> dict[str, Any]:
       - classification: the routing label
       - classification_confidence: model's confidence score
     """
-    model = _get_model()
-    structured_model = model.with_structured_output(ClassificationResult)
+    messages = prepare_messages_for_llm(
+        system_prompt=CLASSIFICATION_SYSTEM_PROMPT,
+        state_messages=state["messages"],
+        conversation_summary=state.get("conversation_summary"),
+    )
 
-    messages = [
-        SystemMessage(content=CLASSIFICATION_SYSTEM_PROMPT),
-        *state["messages"],
-    ]
-
-    result: ClassificationResult = await structured_model.ainvoke(messages)
+    result: ClassificationResult = await invoke_with_retry(
+        call_factory=lambda: _get_model().with_structured_output(ClassificationResult).ainvoke(messages)
+    )
 
     logger.info(
         "Classification: %s (confidence=%.2f) — %s",

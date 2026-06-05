@@ -14,7 +14,7 @@ import {
 } from 'react-icons/hi2'
 import DashboardLayout from '../components/DashboardLayout'
 
-const TABS = ['Overview', 'All sales', 'Invoices', 'Estimates', 'Customers', 'Products & services']
+// const TABS = ['Overview', 'All sales', 'Invoices', 'Estimates', 'Customers', 'Products & services']
 
 /** Demo rows — replace with API when invoice list endpoint exists */
 const DEMO_ROWS = [
@@ -122,25 +122,25 @@ export default function InvoiceList() {
   useEffect(() => {
     if (!me || meError) return
     let cancelled = false
-    ;(async () => {
-      setLoading(true)
-      try {
-        const token = await getFreshToken()
-        if (!token || cancelled) return
-        const data = await api('/invoice', { token })
-        if (!cancelled) {
-          setInvoices(data || [])
+      ; (async () => {
+        setLoading(true)
+        try {
+          const token = await getFreshToken()
+          if (!token || cancelled) return
+          const data = await api('/invoice', { token })
+          if (!cancelled) {
+            setInvoices(data || [])
+          }
+        } catch (err) {
+          if (!cancelled) {
+            setError(err instanceof Error ? err.message : 'Could not fetch invoices')
+          }
+        } finally {
+          if (!cancelled) {
+            setLoading(false)
+          }
         }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Could not fetch invoices')
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      }
-    })()
+      })()
     return () => {
       cancelled = true
     }
@@ -223,38 +223,37 @@ export default function InvoiceList() {
       <div className="space-y-6">
         <div>
           <h2 className="text-[#111827] text-[28px] font-bold tracking-tight">Invoices</h2>
-          <div className="mt-4 flex flex-wrap gap-8 border-b border-[#E5E7EB]">
-            {TABS.map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setActiveTab(tab)}
-                className={`relative pb-3 text-[15px] font-semibold transition-colors ${
-                  activeTab === tab
-                    ? 'text-[#0F766E]'
-                    : 'text-[#64748B] hover:text-[#111827]'
-                }`}
-              >
-                {tab}
-                {activeTab === tab ? (
-                  <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-[#0F766E]" />
-                ) : null}
-              </button>
-            ))}
-          </div>
+          {/*<div className="mt-4 flex flex-wrap gap-8 border-b border-[#E5E7EB]">*/}
+          {/*  {TABS.map((tab) => (*/}
+          {/*    <button*/}
+          {/*      key={tab}*/}
+          {/*      type="button"*/}
+          {/*      onClick={() => setActiveTab(tab)}*/}
+          {/*      className={`relative pb-3 text-[15px] font-semibold transition-colors ${activeTab === tab*/}
+          {/*          ? 'text-[#0F766E]'*/}
+          {/*          : 'text-[#64748B] hover:text-[#111827]'*/}
+          {/*        }`}*/}
+          {/*    >*/}
+          {/*      {tab}*/}
+          {/*      {activeTab === tab ? (*/}
+          {/*        <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-[#0F766E]" />*/}
+          {/*      ) : null}*/}
+          {/*    </button>*/}
+          {/*  ))}*/}
+          {/*</div>*/}
         </div>
 
         <div className="rounded-2xl bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] px-4 text-[13px] font-semibold text-[#111827] hover:bg-[#F3F4F6]"
-              >
-                Batch actions
-                <HiOutlineChevronDown className="h-4 w-4 text-[#6B7280]" />
-              </button>
-              <SelectShell label="Type" value="All transactions" />
+              {/*<button*/}
+              {/*  type="button"*/}
+              {/*  className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] px-4 text-[13px] font-semibold text-[#111827] hover:bg-[#F3F4F6]"*/}
+              {/*>*/}
+              {/*  Batch actions*/}
+              {/*  <HiOutlineChevronDown className="h-4 w-4 text-[#6B7280]" />*/}
+              {/*</button>*/}
+              {/*<SelectShell label="Type" value="All transactions" />*/}
               <SelectShell label="Date" value="Last 3 months" />
               <div className="relative">
                 <HiOutlineMagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
@@ -269,15 +268,15 @@ export default function InvoiceList() {
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex flex-wrap items-center gap-4 text-[13px] font-semibold text-[#0F766E]">
-                <button type="button" className="hover:underline">
-                  All statuses
-                </button>
-                <button type="button" className="hover:underline">
-                  Delivery method
-                </button>
-                <button type="button" className="hover:underline">
-                  Errors
-                </button>
+                {/*<button type="button" className="hover:underline">*/}
+                {/*  All statuses*/}
+                {/*</button>*/}
+                {/*<button type="button" className="hover:underline">*/}
+                {/*  Delivery method*/}
+                {/*</button>*/}
+                {/*<button type="button" className="hover:underline">*/}
+                {/*  Errors*/}
+                {/*</button>*/}
               </div>
               <button
                 type="button"
@@ -285,34 +284,34 @@ export default function InvoiceList() {
                 className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#0F766E] px-5 text-[14px] font-bold text-white shadow-sm hover:bg-[#0F766E]/90"
               >
                 New transaction
-                <HiOutlineChevronDown className="h-4 w-4" />
+                {/*<HiOutlineChevronDown className="h-4 w-4" />*/}
               </button>
             </div>
           </div>
 
-          <div className="mt-2 flex justify-end gap-2 border-b border-[#E5E7EB] pb-2">
-            <button
-              type="button"
-              className="rounded-lg p-2 text-[#64748B] hover:bg-[#F9FAFB] hover:text-[#111827]"
-              title="Print"
-            >
-              <HiOutlinePrinter className="h-5 w-5" />
-            </button>
-            <button
-              type="button"
-              className="rounded-lg p-2 text-[#64748B] hover:bg-[#F9FAFB] hover:text-[#111827]"
-              title="Export"
-            >
-              <HiOutlineArrowUpTray className="h-5 w-5" />
-            </button>
-            <button
-              type="button"
-              className="rounded-lg p-2 text-[#64748B] hover:bg-[#F9FAFB] hover:text-[#111827]"
-              title="Settings"
-            >
-              <HiOutlineCog6Tooth className="h-5 w-5" />
-            </button>
-          </div>
+          {/*<div className="mt-2 flex justify-end gap-2 border-b border-[#E5E7EB] pb-2">*/}
+          {/*  <button*/}
+          {/*    type="button"*/}
+          {/*    className="rounded-lg p-2 text-[#64748B] hover:bg-[#F9FAFB] hover:text-[#111827]"*/}
+          {/*    title="Print"*/}
+          {/*  >*/}
+          {/*    <HiOutlinePrinter className="h-5 w-5" />*/}
+          {/*  </button>*/}
+          {/*  <button*/}
+          {/*    type="button"*/}
+          {/*    className="rounded-lg p-2 text-[#64748B] hover:bg-[#F9FAFB] hover:text-[#111827]"*/}
+          {/*    title="Export"*/}
+          {/*  >*/}
+          {/*    <HiOutlineArrowUpTray className="h-5 w-5" />*/}
+          {/*  </button>*/}
+          {/*  <button*/}
+          {/*    type="button"*/}
+          {/*    className="rounded-lg p-2 text-[#64748B] hover:bg-[#F9FAFB] hover:text-[#111827]"*/}
+          {/*    title="Settings"*/}
+          {/*  >*/}
+          {/*    <HiOutlineCog6Tooth className="h-5 w-5" />*/}
+          {/*  </button>*/}
+          {/*</div>*/}
 
           <div className="overflow-x-auto">
             <table className="mt-2 w-full min-w-[960px] border-collapse text-left text-[13px]">

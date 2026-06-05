@@ -21,6 +21,19 @@ const QUICK_PROMPTS = [
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8080'
 
+function formatMarkdown(text) {
+  if (!text) return ''
+  return text
+    // Bold: **text** → <strong>text</strong>
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    // Inline code: `text` → <code>text</code>
+    .replace(/`([^`]+)`/g, '<code style="background:#E5E7EB;padding:1px 5px;border-radius:4px;font-size:12px">$1</code>')
+    // Bullet points: lines starting with * or • or -
+    .replace(/^[\*•\-]\s+(.*)$/gm, '<div style="padding-left:12px;margin:4px 0">• $1</div>')
+    // Line breaks
+    .replace(/\n/g, '<br/>')
+}
+
 /* ─── Confirmation Card ────────────────────────────────────────────────────── */
 
 function ConfirmationCard({ action, onConfirm, onCancel, onModify }) {
@@ -288,8 +301,8 @@ export default function FloatingAiChat() {
               <div>
                 <h3 className="text-[16px] font-bold text-white tracking-tight">AI Assistant</h3>
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-300 animate-pulse" />
-                  <p className="text-[12px] font-medium text-white/80">Gemini 2.5 Flash</p>
+                  {/*<span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-300 animate-pulse" />*/}
+                  {/*<p className="text-[12px] font-medium text-white/80">Gemini 2.5 Flash</p>*/}
                 </div>
               </div>
             </div>
@@ -334,9 +347,7 @@ export default function FloatingAiChat() {
                     <HiOutlineSparkles className="h-4 w-4 text-[#0F766E]" />
                   </div>
                   <div className="max-w-[85%] rounded-2xl rounded-bl-lg bg-white px-4 py-3 text-[14px] leading-relaxed text-[#374151] shadow-sm ring-1 ring-black/[0.06]">
-                    {m.text.split('\n').map((line, i) => (
-                      <p key={i} className={i > 0 ? 'mt-2' : ''}>{line || '\u00A0'}</p>
-                    ))}
+                    <div dangerouslySetInnerHTML={{ __html: formatMarkdown(m.text) }} />
                   </div>
                 </div>
               )
@@ -447,7 +458,7 @@ export default function FloatingAiChat() {
             </button>
           </div>
           <p className="mt-3 text-center text-[11px] font-medium text-[#9CA3AF]">
-            Powered by <span className="font-semibold">Gemini 2.5 Flash</span> · LangGraph
+            {/*Powered by <span className="font-semibold">Gemini 2.5 Flash</span> · LangGraph*/}
           </p>
         </div>
       </div>
