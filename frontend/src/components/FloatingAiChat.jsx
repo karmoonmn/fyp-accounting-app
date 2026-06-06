@@ -11,6 +11,7 @@ import {
   HiOutlineArrowPath,
 } from 'react-icons/hi2'
 import { useAuth } from '../context/AuthContext'
+import { useNavigate } from 'react-router-dom'
 
 const QUICK_PROMPTS = [
   { emoji: '📊', text: 'What was my revenue last month?' },
@@ -70,10 +71,16 @@ function ConfirmationCard({ action, onConfirm, onCancel, onModify }) {
             <HiOutlineCheckCircle className="h-4 w-4" /> Confirm
           </button>
           <button
-            onClick={onModify}
+            onClick={() => onModify('chat')}
             className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-white border border-[#E5E7EB] px-3 py-2.5 text-[12px] font-bold text-[#374151] shadow-sm hover:bg-[#F9FAFB] active:scale-[0.98] transition-all"
           >
-            <HiOutlinePencilSquare className="h-4 w-4" /> Modify
+            <HiOutlineChatBubbleLeftRight className="h-4 w-4" /> Modify via Chat
+          </button>
+          <button
+            onClick={() => onModify('manual')}
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-white border border-[#E5E7EB] px-3 py-2.5 text-[12px] font-bold text-[#374151] shadow-sm hover:bg-[#F9FAFB] active:scale-[0.98] transition-all"
+          >
+            <HiOutlinePencilSquare className="h-4 w-4" /> Modify Manually
           </button>
           <button
             onClick={onCancel}
@@ -91,6 +98,7 @@ function ConfirmationCard({ action, onConfirm, onCancel, onModify }) {
 
 export default function FloatingAiChat() {
   const { idToken: token, me, getFreshToken } = useAuth()
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState([
@@ -237,10 +245,24 @@ export default function FloatingAiChat() {
     } finally { setIsLoading(false) }
   }
 
-  function handleModify() {
-    setPendingAction(null)
-    setInput('I want to modify: ')
-    setTimeout(() => inputRef.current?.focus(), 50)
+  function handleModify(mode) {
+    if (mode === 'manual') {
+      const summary = (pendingAction?.summary || '').toLowerCase()
+      const type = pendingAction?.action_type || ''
+      if (summary.includes('invoice') || type.includes('invoice')) {
+        navigate('/invoice/new', { state: { prefill: pendingAction } })
+      } else if (summary.includes('bill') || type.includes('bill')) {
+        navigate('/bill/new', { state: { prefill: pendingAction } })
+      } else {
+        navigate('/invoice/new', { state: { prefill: pendingAction } })
+      }
+      setOpen(false)
+      setPendingAction(null)
+    } else {
+      setPendingAction(null)
+      setInput('I want to modify: ')
+      setTimeout(() => inputRef.current?.focus(), 50)
+    }
   }
 
   function handleNewChat() {

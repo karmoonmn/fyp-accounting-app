@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useLocation } from 'react-router-dom'
 import { HiOutlinePlus, HiOutlineTrash, HiOutlineXMark } from 'react-icons/hi2'
 import CustomSelect from '../components/CustomSelect'
 import FormSkeleton from '../components/FormSkeleton'
@@ -24,15 +24,28 @@ function emptyLine(num) {
 export default function CreateBill() {
   const { me, meError, getFreshToken } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const { id } = useParams()
   const isEdit = !!id
 
-  const [docNumber, setDocNumber] = useState('')
-  const [txnDate, setTxnDate] = useState(todayISO())
-  const [dueDate, setDueDate] = useState('')
+  const prefill = location.state?.prefill || null
+
+  const [docNumber, setDocNumber] = useState(prefill?.doc_number || '')
+  const [txnDate, setTxnDate] = useState(prefill?.txn_date || todayISO())
+  const [dueDate, setDueDate] = useState(prefill?.due_date || '')
   const [supplierId, setSupplierId] = useState('')
   const [memo, setMemo] = useState('')
-  const [lines, setLines] = useState([emptyLine(1), emptyLine(2)])
+  const [lines, setLines] = useState(() => {
+    if (prefill?.line_items?.length) {
+      return prefill.line_items.map((l, i) => ({
+        lineNum: i + 1,
+        accountId: '',
+        description: l.description || '',
+        amount: l.amount != null ? l.amount.toString() : (l.unit_price != null ? l.unit_price.toString() : '0'),
+      }))
+    }
+    return [emptyLine(1), emptyLine(2)]
+  })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
@@ -92,6 +105,12 @@ export default function CreateBill() {
                     amount: l.amount != null ? l.amount.toString() : '0',
                   }))
                 )
+              }
+            } else if (prefill) {
+              const name = prefill.supplier_name || prefill.vendor_name || prefill.supplier || ''
+              if (name && supps) {
+                const match = supps.find(s => s.name.toLowerCase() === name.toLowerCase())
+                if (match) setSupplierId(match.id.toString())
               }
             }
           }

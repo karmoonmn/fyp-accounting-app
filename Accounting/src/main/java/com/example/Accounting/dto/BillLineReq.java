@@ -10,5 +10,6 @@ public class BillLineReq {
     private String description;
     private BigDecimal quantity;
     private BigDecimal unitPrice;
+    private BigDecimal amount;
     private Long accountId;
 }

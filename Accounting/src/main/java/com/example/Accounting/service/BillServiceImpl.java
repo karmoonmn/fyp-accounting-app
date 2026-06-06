@@ -57,7 +57,14 @@ public class BillServiceImpl implements BillService {
 
         if (req.getLines() != null) {
             for (var lineReq : req.getLines()) {
-                BigDecimal amount = lineReq.getQuantity().multiply(lineReq.getUnitPrice());
+                BigDecimal amount = lineReq.getAmount();
+                if (amount == null) {
+                    if (lineReq.getQuantity() != null && lineReq.getUnitPrice() != null) {
+                        amount = lineReq.getQuantity().multiply(lineReq.getUnitPrice());
+                    } else {
+                        amount = BigDecimal.ZERO;
+                    }
+                }
                 totalAmt = totalAmt.add(amount);
 
                 Account account = null;
@@ -169,7 +176,14 @@ public class BillServiceImpl implements BillService {
 
         if (req.getLines() != null) {
             for (var lineReq : req.getLines()) {
-                BigDecimal amount = lineReq.getQuantity().multiply(lineReq.getUnitPrice());
+                BigDecimal amount = lineReq.getAmount();
+                if (amount == null) {
+                    if (lineReq.getQuantity() != null && lineReq.getUnitPrice() != null) {
+                        amount = lineReq.getQuantity().multiply(lineReq.getUnitPrice());
+                    } else {
+                        amount = BigDecimal.ZERO;
+                    }
+                }
                 totalAmt = totalAmt.add(amount);
 
                 Account account = accountRepo.findByIdAndCompanyId(lineReq.getAccountId(), companyId)

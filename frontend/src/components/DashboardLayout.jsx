@@ -34,12 +34,6 @@ export default function DashboardLayout({ children, activeNav = 'dashboard' }) {
 
   const navItems = [
     { key: 'dashboard', icon: HiOutlineHome, label: 'Dashboard', onClick: () => navigate('/') },
-    {
-      key: 'analytics',
-      icon: HiOutlinePresentationChartLine,
-      label: 'Analytics',
-      onClick: () => navigate('/analytics'),
-    },
     { 
       key: 'bills', 
       icon: HiOutlineReceiptPercent, 
@@ -65,10 +59,17 @@ export default function DashboardLayout({ children, activeNav = 'dashboard' }) {
         { key: 'payments', label: 'Payments', onClick: () => navigate('/payments') },
       ]
     },
-    { key: 'reports', icon: HiOutlineChartBar, label: 'Reports', onClick: () => navigate('/reports') },
     { key: 'bank', icon: HiOutlineCreditCard, label: 'Bank Account', onClick: () => navigate('/bank') },
+
+    { key: 'reports', icon: HiOutlineChartBar, label: 'Reports', onClick: () => navigate('/reports') },
+    {
+      key: 'analytics',
+      icon: HiOutlinePresentationChartLine,
+      label: 'Financial Forecast',
+      onClick: () => navigate('/analytics'),
+    },
     { key: 'accounts', icon: HiOutlineBookOpen, label: 'Chart of Accounts', onClick: () => navigate('/accounts') },
-    { key: 'quick', icon: HiOutlineSparkles, label: 'Quick Action', onClick: () => navigate('/quick') },
+    // { key: 'quick', icon: HiOutlineSparkles, label: 'Quick Action', onClick: () => navigate('/quick') },
   ]
 
   async function handleSignOut() {

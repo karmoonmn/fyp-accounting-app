@@ -397,12 +397,12 @@ export default function InvoicePayment() {
             Cancel
           </button>
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              className="inline-flex h-10 items-center justify-center rounded-xl bg-[#374151] px-5 text-[14px] font-bold text-white hover:bg-[#4B5563]"
-            >
-              Print
-            </button>
+            {/*<button*/}
+            {/*  type="button"*/}
+            {/*  className="inline-flex h-10 items-center justify-center rounded-xl bg-[#374151] px-5 text-[14px] font-bold text-white hover:bg-[#4B5563]"*/}
+            {/*>*/}
+            {/*  Print*/}
+            {/*</button>*/}
             <button
               type="button"
               onClick={handleSubmit}

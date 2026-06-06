@@ -14,6 +14,7 @@ import {
   browserSessionPersistence,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
+  sendPasswordResetEmail,
 } from 'firebase/auth'
 import { auth } from '../firebase'
 import { api, setGlobalCompanyId } from '../api'
@@ -90,6 +91,11 @@ export function AuthProvider({ children }) {
     await firebaseSignOut(auth)
   }, [])
 
+  const resetPassword = useCallback(async (email) => {
+    setMeError(null)
+    await sendPasswordResetEmail(auth, email.trim())
+  }, [])
+
   const getFreshToken = useCallback(async () => {
     const u = auth.currentUser
     if (!u) return null
@@ -108,6 +114,7 @@ export function AuthProvider({ children }) {
       signOut,
       refreshMe,
       getFreshToken,
+      resetPassword,
     }),
     [
       firebaseUser,
@@ -120,6 +127,7 @@ export function AuthProvider({ children }) {
       signOut,
       refreshMe,
       getFreshToken,
+      resetPassword,
     ],
   )
 

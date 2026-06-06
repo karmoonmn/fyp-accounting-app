@@ -1,68 +1,22 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../context/AuthContext'
 import {
-  HiOutlineArrowUpTray,
   HiOutlineArrowsUpDown,
   HiOutlineCheckCircle,
   HiOutlineChevronDown,
+  HiOutlineChevronUp,
   HiOutlineExclamationCircle,
   HiOutlineMagnifyingGlass,
-  HiOutlinePrinter,
-  HiOutlineCog6Tooth,
+  HiOutlineDocumentText,
+  HiOutlineBanknotes,
+  HiOutlineClock,
+  HiOutlineXMark,
+  HiOutlineCalendarDays,
+  HiOutlineFunnel,
 } from 'react-icons/hi2'
 import DashboardLayout from '../components/DashboardLayout'
-
-// const TABS = ['Overview', 'All sales', 'Invoices', 'Estimates', 'Customers', 'Products & services']
-
-/** Demo rows — replace with API when invoice list endpoint exists */
-const DEMO_ROWS = [
-  {
-    id: '1',
-    date: '2024-03-15',
-    type: 'Invoice',
-    no: 'INV-1042',
-    customer: 'Key Concept Pte Ltd',
-    memo: '',
-    amount: 5139.0,
-    status: { kind: 'overdue', label: 'Overdue 3 days' },
-    actions: 'invoice',
-  },
-  {
-    id: '2',
-    date: '2024-03-18',
-    type: 'Payment',
-    no: 'PAY-089',
-    customer: 'Apex Trading Co.',
-    memo: 'Partial',
-    amount: 2100.0,
-    status: { kind: 'closed', label: 'Closed' },
-    actions: 'payment',
-  },
-  {
-    id: '3',
-    date: '2024-03-22',
-    type: 'Invoice',
-    no: 'INV-1043',
-    customer: 'Northwind Logistics',
-    memo: '',
-    amount: 8420.5,
-    status: { kind: 'due', label: 'Due in 4 days' },
-    actions: 'invoice',
-  },
-  {
-    id: '4',
-    date: '2024-03-25',
-    type: 'Invoice',
-    no: 'INV-1044',
-    customer: 'Bright Ideas Studio',
-    memo: 'Q1 services',
-    amount: 9131.63,
-    status: { kind: 'closed', label: 'Closed' },
-    actions: 'invoice',
-  },
-]
 
 function formatMoney(n) {
   return new Intl.NumberFormat('en-SG', {
@@ -72,75 +26,93 @@ function formatMoney(n) {
   }).format(n)
 }
 
-function StatusCell({ status }) {
+const STATUS_OPTIONS = [
+  { key: 'all', label: 'All', color: 'bg-gray-100 text-gray-700' },
+  { key: 'open', label: 'Open', color: 'bg-blue-50 text-blue-700' },
+  { key: 'partial', label: 'Partially Paid', color: 'bg-orange-50 text-orange-700' },
+  { key: 'paid', label: 'Paid', color: 'bg-emerald-50 text-emerald-700' },
+  { key: 'overdue', label: 'Overdue', color: 'bg-red-50 text-red-700' },
+]
+
+const SORT_OPTIONS = [
+  { key: 'date-desc', label: 'Date (Newest)' },
+  { key: 'date-asc', label: 'Date (Oldest)' },
+  { key: 'customer-asc', label: 'Customer (A-Z)' },
+  { key: 'customer-desc', label: 'Customer (Z-A)' },
+  { key: 'docNumber-asc', label: 'Invoice No. (A-Z)' },
+  { key: 'docNumber-desc', label: 'Invoice No. (Z-A)' },
+  { key: 'amount-desc', label: 'Amount (High-Low)' },
+  { key: 'amount-asc', label: 'Amount (Low-High)' },
+]
+
+function StatusBadge({ status }) {
   if (status.kind === 'overdue') {
     return (
-      <div className="flex items-center gap-2 text-[#111827] text-[13px]">
-        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#FEF3C7] text-[#D97706]">
-          <HiOutlineExclamationCircle className="h-3.5 w-3.5" />
-        </span>
-        <span className="font-medium text-[#B45309]">{status.label}</span>
-      </div>
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-[12px] font-semibold text-red-700 ring-1 ring-red-100">
+        <HiOutlineExclamationCircle className="h-3.5 w-3.5" />
+        {status.label}
+      </span>
     )
   }
   if (status.kind === 'closed') {
     return (
-      <div className="flex items-center gap-2 text-[#111827] text-[13px]">
-        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#CCFBF1] text-[#0F766E]">
-          <HiOutlineCheckCircle className="h-3.5 w-3.5" />
-        </span>
-        <span className="font-medium text-[#0F766E]">{status.label}</span>
-      </div>
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-[12px] font-semibold text-emerald-700 ring-1 ring-emerald-100">
+        <HiOutlineCheckCircle className="h-3.5 w-3.5" />
+        {status.label}
+      </span>
     )
   }
-  return <span className="text-[13px] font-medium text-[#64748B]">{status.label}</span>
-}
-
-function SelectShell({ label, value }) {
+  if (status.kind === 'due') {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-[12px] font-semibold text-amber-700 ring-1 ring-amber-100">
+        <HiOutlineClock className="h-3.5 w-3.5" />
+        {status.label}
+      </span>
+    )
+  }
   return (
-    <button
-      type="button"
-      className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-3 text-left text-[13px] font-medium text-[#111827] hover:border-[#0F766E]/40"
-    >
-      <span className="text-[#6B7280]">{label}</span>
-      <span className="font-semibold">{value}</span>
-      <HiOutlineChevronDown className="ml-1 h-4 w-4 shrink-0 text-[#6B7280]" />
-    </button>
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-[12px] font-semibold text-blue-700 ring-1 ring-blue-100">
+      {status.label}
+    </span>
   )
 }
 
 export default function InvoiceList() {
   const navigate = useNavigate()
   const { me, meError, getFreshToken } = useAuth()
-  const [activeTab, setActiveTab] = useState('All sales')
   const [selected, setSelected] = useState(() => new Set())
   const [invoices, setInvoices] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [searchText, setSearchText] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [sortBy, setSortBy] = useState('date-desc')
+  const [showSortMenu, setShowSortMenu] = useState(false)
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   useEffect(() => {
     if (!me || meError) return
     let cancelled = false
-      ; (async () => {
-        setLoading(true)
-        try {
-          const token = await getFreshToken()
-          if (!token || cancelled) return
-          const data = await api('/invoice', { token })
-          if (!cancelled) {
-            setInvoices(data || [])
-          }
-        } catch (err) {
-          if (!cancelled) {
-            setError(err instanceof Error ? err.message : 'Could not fetch invoices')
-          }
-        } finally {
-          if (!cancelled) {
-            setLoading(false)
-          }
+    ;(async () => {
+      setLoading(true)
+      try {
+        const token = await getFreshToken()
+        if (!token || cancelled) return
+        const data = await api('/invoice', { token })
+        if (!cancelled) {
+          setInvoices(data || [])
         }
-      })()
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Could not fetch invoices')
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    })()
     return () => {
       cancelled = true
     }
@@ -174,10 +146,10 @@ export default function InvoiceList() {
     if (balance < total && balance > 0) {
       return { kind: 'due', label: 'Partially Paid' }
     }
-    return { kind: 'due', label: 'Open' }
+    return { kind: 'open', label: 'Open' }
   }
 
-  const rows = invoices.map((inv) => ({
+  const rows = useMemo(() => invoices.map((inv) => ({
     id: inv.id.toString(),
     date: inv.txnDate || '—',
     type: 'Invoice',
@@ -185,24 +157,81 @@ export default function InvoiceList() {
     customer: inv.customer ? inv.customer.name : '—',
     memo: inv.shipAddr || '',
     amount: Number.parseFloat(inv.totalAmt) || 0,
+    balance: Number.parseFloat(inv.balance) || 0,
     status: getInvoiceStatus(inv),
-    actions: 'invoice',
-  }))
+    dueDate: inv.dueDate || '',
+  })), [invoices])
 
-  const filteredRows = rows.filter((row) => {
+  const filteredAndSorted = useMemo(() => {
+    let result = [...rows]
+
+    // Search filter
     const q = searchText.trim().toLowerCase()
-    if (!q) return true
-    return (
-      row.customer.toLowerCase().includes(q) ||
-      row.no.toLowerCase().includes(q) ||
-      row.memo.toLowerCase().includes(q)
-    )
-  })
+    if (q) {
+      result = result.filter((row) =>
+        row.customer.toLowerCase().includes(q) ||
+        row.no.toLowerCase().includes(q) ||
+        row.memo.toLowerCase().includes(q) ||
+        row.amount.toString().includes(q)
+      )
+    }
 
-  const totalAmount = filteredRows.reduce((s, r) => s + r.amount, 0)
-  const pageStart = filteredRows.length > 0 ? 1 : 0
-  const pageEnd = filteredRows.length
-  const totalCount = filteredRows.length
+    // Status filter
+    if (statusFilter !== 'all') {
+      const statusMap = {
+        open: 'open',
+        partial: 'due',
+        paid: 'closed',
+        overdue: 'overdue',
+      }
+      result = result.filter((row) => row.status.kind === statusMap[statusFilter])
+    }
+
+    // Date range filter
+    if (dateFrom) {
+      result = result.filter((row) => row.date >= dateFrom)
+    }
+    if (dateTo) {
+      result = result.filter((row) => row.date <= dateTo)
+    }
+
+    // Sort
+    const [field, dir] = sortBy.split('-')
+    result.sort((a, b) => {
+      let cmp = 0
+      switch (field) {
+        case 'date':
+          cmp = (a.date || '').localeCompare(b.date || '')
+          break
+        case 'customer':
+          cmp = (a.customer || '').localeCompare(b.customer || '')
+          break
+        case 'docNumber':
+          cmp = (a.no || '').localeCompare(b.no || '')
+          break
+        case 'amount':
+          cmp = a.amount - b.amount
+          break
+        default:
+          cmp = 0
+      }
+      return dir === 'desc' ? -cmp : cmp
+    })
+
+    return result
+  }, [rows, searchText, statusFilter, sortBy, dateFrom, dateTo])
+
+  // Summary stats
+  const stats = useMemo(() => {
+    const total = rows.length
+    const totalAmount = rows.reduce((s, r) => s + r.amount, 0)
+    const paid = rows.filter((r) => r.status.kind === 'closed').length
+    const overdue = rows.filter((r) => r.status.kind === 'overdue').length
+    const overdueAmt = rows.filter((r) => r.status.kind === 'overdue').reduce((s, r) => s + r.balance, 0)
+    return { total, totalAmount, paid, overdue, overdueAmt }
+  }, [rows])
+
+  const filteredTotal = filteredAndSorted.reduce((s, r) => s + r.amount, 0)
 
   function toggleRow(id) {
     setSelected((prev) => {
@@ -214,199 +243,284 @@ export default function InvoiceList() {
   }
 
   function toggleAll() {
-    if (selected.size === filteredRows.length) setSelected(new Set())
-    else setSelected(new Set(filteredRows.map((r) => r.id)))
+    if (selected.size === filteredAndSorted.length) setSelected(new Set())
+    else setSelected(new Set(filteredAndSorted.map((r) => r.id)))
   }
+
+  function clearFilters() {
+    setSearchText('')
+    setStatusFilter('all')
+    setSortBy('date-desc')
+    setDateFrom('')
+    setDateTo('')
+  }
+
+  const hasActiveFilters = searchText || statusFilter !== 'all' || dateFrom || dateTo
 
   return (
     <DashboardLayout activeNav="invoices">
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-[#111827] text-[28px] font-bold tracking-tight">Invoices</h2>
-          {/*<div className="mt-4 flex flex-wrap gap-8 border-b border-[#E5E7EB]">*/}
-          {/*  {TABS.map((tab) => (*/}
-          {/*    <button*/}
-          {/*      key={tab}*/}
-          {/*      type="button"*/}
-          {/*      onClick={() => setActiveTab(tab)}*/}
-          {/*      className={`relative pb-3 text-[15px] font-semibold transition-colors ${activeTab === tab*/}
-          {/*          ? 'text-[#0F766E]'*/}
-          {/*          : 'text-[#64748B] hover:text-[#111827]'*/}
-          {/*        }`}*/}
-          {/*    >*/}
-          {/*      {tab}*/}
-          {/*      {activeTab === tab ? (*/}
-          {/*        <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-[#0F766E]" />*/}
-          {/*      ) : null}*/}
-          {/*    </button>*/}
-          {/*  ))}*/}
-          {/*</div>*/}
+      <div className="space-y-6" style={{ animation: 'fadeIn 0.4s ease-out' }}>
+        {/* Simple Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-[28px] font-bold tracking-tight text-[#111827]">Invoices</h2>
+            {/*<p className="mt-0.5 text-[14px] font-medium text-[#6B7280]">*/}
+            {/*  {stats.total} total invoice{stats.total !== 1 ? 's' : ''} · {formatMoney(stats.totalAmount)}*/}
+            {/*</p>*/}
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/invoice/new')}
+            className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#0F766E] px-5 text-[14px] font-bold text-white shadow-sm hover:bg-[#0F766E]/90 transition-all"
+          >
+            New Invoice
+          </button>
         </div>
 
-        <div className="rounded-2xl bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap items-center gap-3">
-              {/*<button*/}
-              {/*  type="button"*/}
-              {/*  className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] px-4 text-[13px] font-semibold text-[#111827] hover:bg-[#F3F4F6]"*/}
-              {/*>*/}
-              {/*  Batch actions*/}
-              {/*  <HiOutlineChevronDown className="h-4 w-4 text-[#6B7280]" />*/}
-              {/*</button>*/}
-              {/*<SelectShell label="Type" value="All transactions" />*/}
-              <SelectShell label="Date" value="Last 3 months" />
-              <div className="relative">
-                <HiOutlineMagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
-                <input
-                  type="search"
-                  placeholder="Customer"
-                  value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
-                  className="h-10 w-[220px] rounded-xl border border-[#E5E7EB] bg-white pl-9 pr-3 text-[13px] text-[#111827] placeholder-[#9CA3AF] focus:border-[#0F766E] focus:outline-none"
-                />
+        {/* Summary Cards */}
+        <div className="grid grid-cols-4 gap-4">
+          {[
+            { label: 'Total Invoices', value: stats.total, sub: formatMoney(stats.totalAmount), color: 'border-l-emerald-500', icon: HiOutlineDocumentText, iconBg: 'bg-emerald-50 text-emerald-600' },
+            { label: 'Paid', value: stats.paid, sub: `of ${stats.total}`, color: 'border-l-blue-500', icon: HiOutlineCheckCircle, iconBg: 'bg-blue-50 text-blue-600' },
+            { label: 'Overdue', value: stats.overdue, sub: formatMoney(stats.overdueAmt), color: 'border-l-red-500', icon: HiOutlineExclamationCircle, iconBg: 'bg-red-50 text-red-600' },
+            { label: 'Collection Rate', value: stats.total > 0 ? `${Math.round((stats.paid / stats.total) * 100)}%` : '0%', sub: 'paid invoices', color: 'border-l-amber-500', icon: HiOutlineBanknotes, iconBg: 'bg-amber-50 text-amber-600' },
+          ].map((card, i) => (
+            <div
+              key={i}
+              className={`rounded-2xl border border-[#E5E7EB] border-l-[3px] ${card.color} bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md`}
+              style={{ animation: `fadeIn 0.4s ease-out ${i * 0.08}s both` }}
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-[12px] font-semibold uppercase tracking-wide text-[#6B7280]">{card.label}</p>
+                  <p className="mt-1 text-[28px] font-bold tabular-nums text-[#111827]">{card.value}</p>
+                  <p className="mt-0.5 text-[13px] font-medium text-[#9CA3AF]">{card.sub}</p>
+                </div>
+                <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${card.iconBg}`}>
+                  <card.icon className="h-5 w-5" />
+                </div>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex flex-wrap items-center gap-4 text-[13px] font-semibold text-[#0F766E]">
-                {/*<button type="button" className="hover:underline">*/}
-                {/*  All statuses*/}
-                {/*</button>*/}
-                {/*<button type="button" className="hover:underline">*/}
-                {/*  Delivery method*/}
-                {/*</button>*/}
-                {/*<button type="button" className="hover:underline">*/}
-                {/*  Errors*/}
-                {/*</button>*/}
+          ))}
+        </div>
+
+        {/* Filters & Table */}
+        <div className="rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
+          {/* Filter Bar */}
+          <div className="border-b border-[#E5E7EB] p-5">
+            <div className="flex flex-col gap-4">
+              {/* Top row: Search + Sort + Date */}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative flex-1 min-w-[240px] max-w-[360px]">
+                  <HiOutlineMagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
+                  <input
+                    type="search"
+                    placeholder="Search invoices, customers, amounts..."
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                    className="h-10 w-full rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] pl-10 pr-3 text-[13px] text-[#111827] placeholder-[#9CA3AF] transition-colors focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <HiOutlineCalendarDays className="h-4 w-4 text-[#9CA3AF]" />
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="h-10 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] px-3 text-[13px] text-[#111827] transition-colors focus:border-emerald-500 focus:outline-none"
+                    title="From date"
+                  />
+                  <span className="text-[12px] font-medium text-[#9CA3AF]">to</span>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="h-10 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] px-3 text-[13px] text-[#111827] transition-colors focus:border-emerald-500 focus:outline-none"
+                    title="To date"
+                  />
+                </div>
+
+                {/* Sort dropdown */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowSortMenu(!showSortMenu)}
+                    className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] px-3 text-[13px] font-medium text-[#111827] transition-colors hover:border-emerald-400"
+                  >
+                    <HiOutlineArrowsUpDown className="h-4 w-4 text-[#6B7280]" />
+                    {SORT_OPTIONS.find((o) => o.key === sortBy)?.label || 'Sort'}
+                    <HiOutlineChevronDown className="h-3.5 w-3.5 text-[#6B7280]" />
+                  </button>
+                  {showSortMenu && (
+                    <div className="absolute right-0 top-12 z-50 w-52 rounded-xl border border-[#E5E7EB] bg-white p-1.5 shadow-xl">
+                      {SORT_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.key}
+                          type="button"
+                          onClick={() => { setSortBy(opt.key); setShowSortMenu(false) }}
+                          className={`w-full rounded-lg px-3 py-2 text-left text-[13px] font-medium transition-colors ${sortBy === opt.key ? 'bg-emerald-50 text-emerald-700' : 'text-[#374151] hover:bg-[#F9FAFB]'}`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-100"
+                  >
+                    <HiOutlineXMark className="h-4 w-4" />
+                    Clear
+                  </button>
+                )}
               </div>
-              <button
-                type="button"
-                onClick={() => navigate('/invoice/new')}
-                className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#0F766E] px-5 text-[14px] font-bold text-white shadow-sm hover:bg-[#0F766E]/90"
-              >
-                New transaction
-                {/*<HiOutlineChevronDown className="h-4 w-4" />*/}
-              </button>
+
+              {/* Status pills */}
+              <div className="flex flex-wrap items-center gap-2">
+                <HiOutlineFunnel className="h-4 w-4 text-[#9CA3AF]" />
+                {STATUS_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setStatusFilter(opt.key)}
+                    className={`rounded-full px-4 py-1.5 text-[12px] font-semibold transition-all ${
+                      statusFilter === opt.key
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'bg-[#F3F4F6] text-[#6B7280] hover:bg-[#E5E7EB]'
+                    }`}
+                  >
+                    {opt.label}
+                    {opt.key !== 'all' && (
+                      <span className="ml-1.5 opacity-70">
+                        {rows.filter((r) => {
+                          const statusMap = { open: 'open', partial: 'due', paid: 'closed', overdue: 'overdue' }
+                          return r.status.kind === statusMap[opt.key]
+                        }).length}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
-          {/*<div className="mt-2 flex justify-end gap-2 border-b border-[#E5E7EB] pb-2">*/}
-          {/*  <button*/}
-          {/*    type="button"*/}
-          {/*    className="rounded-lg p-2 text-[#64748B] hover:bg-[#F9FAFB] hover:text-[#111827]"*/}
-          {/*    title="Print"*/}
-          {/*  >*/}
-          {/*    <HiOutlinePrinter className="h-5 w-5" />*/}
-          {/*  </button>*/}
-          {/*  <button*/}
-          {/*    type="button"*/}
-          {/*    className="rounded-lg p-2 text-[#64748B] hover:bg-[#F9FAFB] hover:text-[#111827]"*/}
-          {/*    title="Export"*/}
-          {/*  >*/}
-          {/*    <HiOutlineArrowUpTray className="h-5 w-5" />*/}
-          {/*  </button>*/}
-          {/*  <button*/}
-          {/*    type="button"*/}
-          {/*    className="rounded-lg p-2 text-[#64748B] hover:bg-[#F9FAFB] hover:text-[#111827]"*/}
-          {/*    title="Settings"*/}
-          {/*  >*/}
-          {/*    <HiOutlineCog6Tooth className="h-5 w-5" />*/}
-          {/*  </button>*/}
-          {/*</div>*/}
-
+          {/* Table */}
           <div className="overflow-x-auto">
-            <table className="mt-2 w-full min-w-[960px] border-collapse text-left text-[13px]">
+            <table className="w-full min-w-[960px] border-collapse text-left text-[13px]">
               <thead>
-                <tr className="border-b border-[#E5E7EB] text-[11px] font-bold uppercase tracking-wide text-[#6B7280]">
-                  <th className="w-10 py-3 pr-2">
+                <tr className="border-b border-[#E5E7EB] bg-[#FAFAFA] text-[11px] font-bold uppercase tracking-wide text-[#6B7280]">
+                  <th className="w-10 py-3 pl-5 pr-2">
                     <input
                       type="checkbox"
-                      className="h-4 w-4 rounded border border-[#D1D5DB] bg-white accent-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/30"
-                      checked={selected.size === filteredRows.length && filteredRows.length > 0}
+                      className="h-4 w-4 rounded border border-[#D1D5DB] bg-white accent-emerald-600 focus:ring-2 focus:ring-emerald-600/30"
+                      checked={selected.size === filteredAndSorted.length && filteredAndSorted.length > 0}
                       onChange={toggleAll}
                     />
                   </th>
-                  <th className="py-3 pr-4">
-                    <button type="button" className="inline-flex items-center gap-1 hover:text-[#111827]">
-                      Date
-                      <HiOutlineArrowsUpDown className="h-3.5 w-3.5" />
-                    </button>
-                  </th>
-                  <th className="py-3 pr-4">Type</th>
-                  <th className="py-3 pr-4">No.</th>
+                  <th className="py-3 pr-4">Date</th>
+                  <th className="py-3 pr-4">Invoice No.</th>
                   <th className="py-3 pr-4">Customer</th>
-                  <th className="py-3 pr-4">Memo</th>
+                  <th className="py-3 pr-4">Due Date</th>
                   <th className="py-3 pr-4 text-right">Amount</th>
                   <th className="py-3 pr-4">Status</th>
-                  <th className="py-3">Action</th>
+                  <th className="py-3 pr-5">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr>
-                    <td colSpan={9} className="py-8 text-center text-[13px] font-semibold text-[#64748B]">
-                      Loading invoices...
-                    </td>
-                  </tr>
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i} className="border-b border-[#F3F4F6]">
+                      {Array.from({ length: 8 }).map((_, j) => (
+                        <td key={j} className="py-4 px-4">
+                          <div className="h-4 w-full animate-pulse rounded-lg bg-[#F3F4F6]" />
+                        </td>
+                      ))}
+                    </tr>
+                  ))
                 ) : error ? (
                   <tr>
-                    <td colSpan={9} className="py-8 text-center text-[13px] font-semibold text-[#B91C1C]">
-                      {error}
+                    <td colSpan={8} className="py-12 text-center">
+                      <div className="flex flex-col items-center gap-2">
+                        <HiOutlineExclamationCircle className="h-8 w-8 text-red-400" />
+                        <p className="text-[14px] font-semibold text-red-600">{error}</p>
+                      </div>
                     </td>
                   </tr>
-                ) : filteredRows.length === 0 ? (
+                ) : filteredAndSorted.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="py-8 text-center text-[13px] font-semibold text-[#64748B]">
-                      No invoices found.
+                    <td colSpan={8} className="py-12 text-center">
+                      <div className="flex flex-col items-center gap-2">
+                        <HiOutlineDocumentText className="h-10 w-10 text-[#D1D5DB]" />
+                        <p className="text-[14px] font-semibold text-[#6B7280]">
+                          {hasActiveFilters ? 'No invoices match your filters' : 'No invoices yet'}
+                        </p>
+                        {hasActiveFilters && (
+                          <button
+                            type="button"
+                            onClick={clearFilters}
+                            className="mt-1 text-[13px] font-semibold text-emerald-600 hover:underline"
+                          >
+                            Clear all filters
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ) : (
-                  filteredRows.map((row, i) => (
+                  filteredAndSorted.map((row, i) => (
                     <tr
                       key={row.id}
-                      className={`border-b border-[#F3F4F6] ${i % 2 === 1 ? 'bg-[#F9FAFB]/80' : 'bg-white'}`}
+                      className={`border-b border-[#F3F4F6] transition-colors hover:bg-emerald-50/30 ${
+                        selected.has(row.id) ? 'bg-emerald-50/50' : i % 2 === 1 ? 'bg-[#FAFAFA]' : 'bg-white'
+                      }`}
                     >
-                      <td className="py-3 pr-2 align-middle">
+                      <td className="py-3.5 pl-5 pr-2 align-middle">
                         <input
                           type="checkbox"
-                          className="h-4 w-4 rounded border border-[#D1D5DB] bg-white accent-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/30"
+                          className="h-4 w-4 rounded border border-[#D1D5DB] bg-white accent-emerald-600 focus:ring-2 focus:ring-emerald-600/30"
                           checked={selected.has(row.id)}
                           onChange={() => toggleRow(row.id)}
                         />
                       </td>
-                      <td className="py-3 pr-4 align-middle font-medium text-[#111827]">{row.date}</td>
-                      <td className="py-3 pr-4 align-middle text-[#374151]">{row.type}</td>
-                      <td className="py-3 pr-4 align-middle font-semibold text-[#0F766E]">{row.no}</td>
-                      <td className="py-3 pr-4 align-middle text-[#111827]">{row.customer}</td>
-                      <td className="py-3 pr-4 align-middle text-[#9CA3AF]">{row.memo || '—'}</td>
-                      <td className="py-3 pr-4 align-middle text-right font-semibold tabular-nums text-[#111827]">
+                      <td className="py-3.5 pr-4 align-middle font-medium text-[#111827]">{row.date}</td>
+                      <td className="py-3.5 pr-4 align-middle">
+                        <span className="font-bold text-emerald-700">{row.no}</span>
+                      </td>
+                      <td className="py-3.5 pr-4 align-middle font-medium text-[#111827]">{row.customer}</td>
+                      <td className="py-3.5 pr-4 align-middle text-[#6B7280]">{row.dueDate || '—'}</td>
+                      <td className="py-3.5 pr-4 align-middle text-right font-semibold tabular-nums text-[#111827]">
                         {formatMoney(row.amount)}
                       </td>
-                      <td className="py-3 pr-4 align-middle">
-                        <StatusCell status={row.status} />
+                      <td className="py-3.5 pr-4 align-middle">
+                        <StatusBadge status={row.status} />
                       </td>
-                      <td className="py-3 align-middle">
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <td className="py-3.5 pr-5 align-middle">
+                        <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => navigate(`/invoice/edit/${row.id}`)}
-                            className="font-semibold text-[#0F766E] hover:underline"
+                            className="rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-50"
                           >
-                            View/Edit
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => navigate('/invoice/payment')}
+                            className="rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-blue-600 transition-colors hover:bg-blue-50"
+                          >
+                            Pay
                           </button>
                           <button
                             type="button"
                             onClick={() => handleDelete(row.id)}
-                            className="font-semibold text-[#B91C1C] hover:underline"
+                            className="rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-red-500 transition-colors hover:bg-red-50"
                           >
                             Delete
-                          </button>
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-0.5 font-semibold text-[#0F766E] hover:underline"
-                            onClick={() => navigate('/invoice/payment')}
-                          >
-                            Receive payment
-                            <HiOutlineChevronDown className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       </td>
@@ -414,36 +528,32 @@ export default function InvoiceList() {
                   ))
                 )}
               </tbody>
-              <tfoot>
-                <tr className="border-t border-[#E5E7EB] bg-[#F3F4F6] text-[13px]">
-                  <td colSpan={6} className="px-2 py-3 font-bold text-[#111827]">
-                    Total
-                  </td>
-                  <td className="px-4 py-3 text-right font-bold tabular-nums text-[#111827]">
-                    {formatMoney(totalAmount)}
-                  </td>
-                  <td colSpan={2} className="py-3" />
-                </tr>
-              </tfoot>
+              {filteredAndSorted.length > 0 && (
+                <tfoot>
+                  <tr className="border-t-2 border-[#E5E7EB] bg-[#FAFAFA]">
+                    <td colSpan={5} className="py-3.5 pl-5 text-[13px] font-bold text-[#111827]">
+                      Total ({filteredAndSorted.length} invoice{filteredAndSorted.length !== 1 ? 's' : ''})
+                    </td>
+                    <td className="py-3.5 pr-4 text-right text-[14px] font-bold tabular-nums text-[#111827]">
+                      {formatMoney(filteredTotal)}
+                    </td>
+                    <td colSpan={2} />
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
 
-          <div className="flex items-center justify-end gap-4 border-t border-[#E5E7EB] px-2 py-3 text-[13px] font-semibold text-[#0F766E]">
-            <button type="button" className="hover:underline disabled:opacity-40" disabled>
-              First
-            </button>
-            <button type="button" className="hover:underline disabled:opacity-40" disabled>
-              Previous
-            </button>
-            <span className="text-[#64748B]">
-              {pageStart}-{pageEnd} of {totalCount}
+          {/* Footer */}
+          <div className="flex items-center justify-between border-t border-[#E5E7EB] px-5 py-3 text-[13px]">
+            <span className="font-medium text-[#6B7280]">
+              Showing {filteredAndSorted.length} of {rows.length} invoices
             </span>
-            <button type="button" className="hover:underline disabled:opacity-40" disabled>
-              Next
-            </button>
-            <button type="button" className="hover:underline disabled:opacity-40" disabled>
-              Last
-            </button>
+            {selected.size > 0 && (
+              <span className="font-semibold text-emerald-600">
+                {selected.size} selected
+              </span>
+            )}
           </div>
         </div>
       </div>

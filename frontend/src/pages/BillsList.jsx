@@ -1,26 +1,21 @@
-import React from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  HiOutlineArrowUpTray,
   HiOutlineArrowsUpDown,
   HiOutlineCheckCircle,
   HiOutlineChevronDown,
   HiOutlineExclamationCircle,
   HiOutlineMagnifyingGlass,
-  HiOutlinePrinter,
-  HiOutlineCog6Tooth,
+  HiOutlineReceiptPercent,
+  HiOutlineBanknotes,
+  HiOutlineClock,
+  HiOutlineXMark,
+  HiOutlineCalendarDays,
+  HiOutlineFunnel,
 } from 'react-icons/hi2'
 import DashboardLayout from '../components/DashboardLayout'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../api'
-
-const TABS = [
-  'Overview',
-  'All bills',
-  'Purchase orders',
-  'Vendors',
-  'Products & services',
-]
 
 function formatMoney(n) {
   return new Intl.NumberFormat('en-SG', {
@@ -30,65 +25,72 @@ function formatMoney(n) {
   }).format(n)
 }
 
-function StatusCell({ status }) {
+const STATUS_OPTIONS = [
+  { key: 'all', label: 'All' },
+  { key: 'open', label: 'Open' },
+  { key: 'partial', label: 'Partially Paid' },
+  { key: 'paid', label: 'Paid' },
+  { key: 'overdue', label: 'Overdue' },
+]
+
+const SORT_OPTIONS = [
+  { key: 'date-desc', label: 'Date (Newest)' },
+  { key: 'date-asc', label: 'Date (Oldest)' },
+  { key: 'vendor-asc', label: 'Vendor (A-Z)' },
+  { key: 'vendor-desc', label: 'Vendor (Z-A)' },
+  { key: 'docNumber-asc', label: 'Bill No. (A-Z)' },
+  { key: 'docNumber-desc', label: 'Bill No. (Z-A)' },
+  { key: 'amount-desc', label: 'Amount (High-Low)' },
+  { key: 'amount-asc', label: 'Amount (Low-High)' },
+]
+
+function StatusBadge({ status }) {
   if (status.kind === 'overdue') {
     return (
-      <div className="flex items-center gap-2 text-[#111827] text-[13px]">
-        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#FEF3C7] text-[#D97706]">
-          <HiOutlineExclamationCircle className="h-3.5 w-3.5" />
-        </span>
-        <span className="font-medium text-[#B45309]">{status.label}</span>
-      </div>
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-[12px] font-semibold text-red-700 ring-1 ring-red-100">
+        <HiOutlineExclamationCircle className="h-3.5 w-3.5" />
+        {status.label}
+      </span>
     )
   }
   if (status.kind === 'closed') {
     return (
-      <div className="flex items-center gap-2 text-[#111827] text-[13px]">
-        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#CCFBF1] text-[#0F766E]">
-          <HiOutlineCheckCircle className="h-3.5 w-3.5" />
-        </span>
-        <span className="font-medium text-[#0F766E]">{status.label}</span>
-      </div>
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-[12px] font-semibold text-emerald-700 ring-1 ring-emerald-100">
+        <HiOutlineCheckCircle className="h-3.5 w-3.5" />
+        {status.label}
+      </span>
     )
   }
   if (status.kind === 'partial') {
     return (
-      <div className="flex items-center gap-2 text-[#111827] text-[13px]">
-        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#FFEDD5] text-[#EA580C]">
-          <HiOutlineExclamationCircle className="h-3.5 w-3.5" />
-        </span>
-        <span className="font-medium text-[#C2410C]">{status.label}</span>
-      </div>
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-[12px] font-semibold text-amber-700 ring-1 ring-amber-100">
+        <HiOutlineClock className="h-3.5 w-3.5" />
+        {status.label}
+      </span>
     )
   }
-  if (status.kind === 'open') {
-    return <span className="text-[13px] font-medium text-[#64748B]">{status.label}</span>
-  }
-  return <span className="text-[13px] font-medium text-[#64748B]">{status.label}</span>
-}
-
-function SelectShell({ label, value }) {
   return (
-    <button
-      type="button"
-      className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-3 text-left text-[13px] font-medium text-[#111827] hover:border-[#0F766E]/40"
-    >
-      <span className="text-[#6B7280]">{label}</span>
-      <span className="font-semibold">{value}</span>
-      <HiOutlineChevronDown className="ml-1 h-4 w-4 shrink-0 text-[#6B7280]" />
-    </button>
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-[12px] font-semibold text-blue-700 ring-1 ring-blue-100">
+      {status.label}
+    </span>
   )
 }
 
 export default function BillsList() {
   const navigate = useNavigate()
   const { me, meError, getFreshToken } = useAuth()
-  const [bills, setBills] = React.useState([])
-  const [loading, setLoading] = React.useState(false)
-  const [error, setError] = React.useState('')
-  const [selected, setSelected] = React.useState(() => new Set())
+  const [bills, setBills] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [selected, setSelected] = useState(() => new Set())
+  const [searchText, setSearchText] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [sortBy, setSortBy] = useState('date-desc')
+  const [showSortMenu, setShowSortMenu] = useState(false)
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!me || meError) return
     let cancelled = false
     ;(async () => {
@@ -115,29 +117,98 @@ export default function BillsList() {
     }
   }, [me, meError, getFreshToken])
 
-  const totalAmount = bills.reduce((s, r) => s + (r.totalAmt || 0), 0)
-  const pageStart = bills.length > 0 ? 1 : 0
-  const pageEnd = bills.length
-  const totalCount = bills.length
+  function getBillStatus(bill) {
+    const balance = Number.parseFloat(bill.balance) || 0
+    const total = Number.parseFloat(bill.totalAmt) || 0
+    if (bill.status === 'PAID' || (balance <= 0 && total > 0)) {
+      return { kind: 'closed', label: 'Paid' }
+    }
+    if (bill.dueDate) {
+      const today = new Date().setHours(0, 0, 0, 0)
+      const due = new Date(bill.dueDate).setHours(0, 0, 0, 0)
+      if (due < today && balance > 0) {
+        return { kind: 'overdue', label: 'Overdue' }
+      }
+    }
+    if (bill.status === 'PARTIALLY_PAID' || (balance < total && balance > 0)) {
+      return { kind: 'partial', label: 'Partially Paid' }
+    }
+    return { kind: 'open', label: 'Open' }
+  }
+
+  const rows = useMemo(() => bills.map((bill) => ({
+    id: bill.id.toString(),
+    date: bill.txnDate || '—',
+    no: bill.docNumber || '—',
+    vendor: bill.supplier?.name || '—',
+    memo: bill.memo || '',
+    amount: Number.parseFloat(bill.totalAmt) || 0,
+    balance: Number.parseFloat(bill.balance) || 0,
+    status: getBillStatus(bill),
+    dueDate: bill.dueDate || '',
+  })), [bills])
+
+  const filteredAndSorted = useMemo(() => {
+    let result = [...rows]
+
+    // Search
+    const q = searchText.trim().toLowerCase()
+    if (q) {
+      result = result.filter((row) =>
+        row.vendor.toLowerCase().includes(q) ||
+        row.no.toLowerCase().includes(q) ||
+        row.memo.toLowerCase().includes(q) ||
+        row.amount.toString().includes(q)
+      )
+    }
+
+    // Status filter
+    if (statusFilter !== 'all') {
+      const statusMap = { open: 'open', partial: 'partial', paid: 'closed', overdue: 'overdue' }
+      result = result.filter((row) => row.status.kind === statusMap[statusFilter])
+    }
+
+    // Date range
+    if (dateFrom) result = result.filter((row) => row.date >= dateFrom)
+    if (dateTo) result = result.filter((row) => row.date <= dateTo)
+
+    // Sort
+    const [field, dir] = sortBy.split('-')
+    result.sort((a, b) => {
+      let cmp = 0
+      switch (field) {
+        case 'date': cmp = (a.date || '').localeCompare(b.date || ''); break
+        case 'vendor': cmp = (a.vendor || '').localeCompare(b.vendor || ''); break
+        case 'docNumber': cmp = (a.no || '').localeCompare(b.no || ''); break
+        case 'amount': cmp = a.amount - b.amount; break
+        default: cmp = 0
+      }
+      return dir === 'desc' ? -cmp : cmp
+    })
+
+    return result
+  }, [rows, searchText, statusFilter, sortBy, dateFrom, dateTo])
+
+  const stats = useMemo(() => {
+    const total = rows.length
+    const totalAmount = rows.reduce((s, r) => s + r.amount, 0)
+    const paid = rows.filter((r) => r.status.kind === 'closed').length
+    const overdue = rows.filter((r) => r.status.kind === 'overdue').length
+    const openAmt = rows.filter((r) => r.status.kind !== 'closed').reduce((s, r) => s + r.balance, 0)
+    return { total, totalAmount, paid, overdue, openAmt }
+  }, [rows])
+
+  const filteredTotal = filteredAndSorted.reduce((s, r) => s + r.amount, 0)
 
   function toggleRow(id) {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+    setSelected((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next })
   }
-
   function toggleAll() {
-    if (selected.size === bills.length) setSelected(new Set())
-    else setSelected(new Set(bills.map((r) => r.id)))
+    if (selected.size === filteredAndSorted.length) setSelected(new Set())
+    else setSelected(new Set(filteredAndSorted.map((r) => r.id)))
   }
-
-  function getStatusInfo(status) {
-    if (status === 'PAID') return { kind: 'closed', label: 'Paid' }
-    if (status === 'PARTIALLY_PAID') return { kind: 'partial', label: 'Partially paid' }
-    return { kind: 'open', label: 'Open' }
+  function clearFilters() {
+    setSearchText(''); setStatusFilter('all'); setSortBy('date-desc'); setDateFrom(''); setDateTo('')
   }
 
   async function handleDelete(id) {
@@ -152,230 +223,220 @@ export default function BillsList() {
     }
   }
 
+  const hasActiveFilters = searchText || statusFilter !== 'all' || dateFrom || dateTo
+
   return (
     <DashboardLayout activeNav="bills">
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-[#111827] text-[28px] font-bold tracking-tight">Bills</h2>
-          {/*<div className="mt-4 flex flex-wrap gap-8 border-b border-[#E5E7EB]">*/}
-          {/*  {TABS.map((tab) => (*/}
-          {/*    <button*/}
-          {/*      key={tab}*/}
-          {/*      type="button"*/}
-          {/*      onClick={() => setActiveTab(tab)}*/}
-          {/*      className={`relative pb-3 text-[15px] font-semibold transition-colors ${*/}
-          {/*        activeTab === tab*/}
-          {/*          ? 'text-[#0F766E]'*/}
-          {/*          : 'text-[#64748B] hover:text-[#111827]'*/}
-          {/*      }`}*/}
-          {/*    >*/}
-          {/*      {tab}*/}
-          {/*      {activeTab === tab ? (*/}
-          {/*        <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-[#0F766E]" />*/}
-          {/*      ) : null}*/}
-          {/*    </button>*/}
-          {/*  ))}*/}
-          {/*</div>*/}
+      <div className="space-y-6" style={{ animation: 'fadeIn 0.4s ease-out' }}>
+        {/* Simple Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-[28px] font-bold tracking-tight text-[#111827]">Bills</h2>
+            {/*<p className="mt-0.5 text-[14px] font-medium text-[#6B7280]">*/}
+            {/*  {stats.total} total bill{stats.total !== 1 ? 's' : ''} · {formatMoney(stats.totalAmount)}*/}
+            {/*</p>*/}
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/bill/new')}
+            className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#E11D48] px-5 text-[14px] font-bold text-white shadow-sm hover:bg-[#BE123C] transition-all"
+          >
+            New Bill
+          </button>
         </div>
 
-        <div className="rounded-2xl bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap items-center gap-3">
-              {/*<button*/}
-              {/*  type="button"*/}
-              {/*  className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] px-4 text-[13px] font-semibold text-[#111827] hover:bg-[#F3F4F6]"*/}
-              {/*>*/}
-              {/*  Batch actions*/}
-              {/*  <HiOutlineChevronDown className="h-4 w-4 text-[#6B7280]" />*/}
-              {/*</button>*/}
-              {/*<SelectShell label="Type" value="All transactions" />*/}
-              <SelectShell label="Date" value="Last 3 months" />
-              <div className="relative">
-                <HiOutlineMagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
-                <input
-                  type="search"
-                  placeholder="Vendor"
-                  className="h-10 w-[220px] rounded-xl border border-[#E5E7EB] bg-white pl-9 pr-3 text-[13px] text-[#111827] placeholder-[#9CA3AF] focus:border-[#0F766E] focus:outline-none"
-                />
+        {/* Summary Cards */}
+        <div className="grid grid-cols-4 gap-4">
+          {[
+            { label: 'Total Bills', value: stats.total, sub: formatMoney(stats.totalAmount), color: 'border-l-rose-500', icon: HiOutlineReceiptPercent, iconBg: 'bg-rose-50 text-rose-600' },
+            { label: 'Paid', value: stats.paid, sub: `of ${stats.total}`, color: 'border-l-emerald-500', icon: HiOutlineCheckCircle, iconBg: 'bg-emerald-50 text-emerald-600' },
+            { label: 'Overdue', value: stats.overdue, sub: 'need attention', color: 'border-l-red-500', icon: HiOutlineExclamationCircle, iconBg: 'bg-red-50 text-red-600' },
+            { label: 'Outstanding', value: formatMoney(stats.openAmt), sub: 'unpaid balance', color: 'border-l-amber-500', icon: HiOutlineBanknotes, iconBg: 'bg-amber-50 text-amber-600' },
+          ].map((card, i) => (
+            <div
+              key={i}
+              className={`rounded-2xl border border-[#E5E7EB] border-l-[3px] ${card.color} bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md`}
+              style={{ animation: `fadeIn 0.4s ease-out ${i * 0.08}s both` }}
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-[12px] font-semibold uppercase tracking-wide text-[#6B7280]">{card.label}</p>
+                  <p className="mt-1 text-[28px] font-bold tabular-nums text-[#111827]">{card.value}</p>
+                  <p className="mt-0.5 text-[13px] font-medium text-[#9CA3AF]">{card.sub}</p>
+                </div>
+                <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${card.iconBg}`}>
+                  <card.icon className="h-5 w-5" />
+                </div>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex flex-wrap items-center gap-4 text-[13px] font-semibold text-[#0F766E]">
-                {/*<button type="button" className="hover:underline">*/}
-                {/*  All statuses*/}
-                {/*</button>*/}
-                {/*<button type="button" className="hover:underline">*/}
-                {/*  Payment method*/}
-                {/*</button>*/}
-                {/*<button type="button" className="hover:underline">*/}
-                {/*  Attachments*/}
-                {/*</button>*/}
+          ))}
+        </div>
+
+        {/* Filters & Table */}
+        <div className="rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
+          {/* Filter Bar */}
+          <div className="border-b border-[#E5E7EB] p-5">
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative flex-1 min-w-[240px] max-w-[360px]">
+                  <HiOutlineMagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
+                  <input
+                    type="search"
+                    placeholder="Search bills, vendors, amounts..."
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                    className="h-10 w-full rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] pl-10 pr-3 text-[13px] text-[#111827] placeholder-[#9CA3AF] transition-colors focus:border-rose-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-rose-500"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <HiOutlineCalendarDays className="h-4 w-4 text-[#9CA3AF]" />
+                  <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                    className="h-10 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] px-3 text-[13px] text-[#111827] transition-colors focus:border-rose-500 focus:outline-none" title="From date" />
+                  <span className="text-[12px] font-medium text-[#9CA3AF]">to</span>
+                  <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                    className="h-10 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] px-3 text-[13px] text-[#111827] transition-colors focus:border-rose-500 focus:outline-none" title="To date" />
+                </div>
+
+                <div className="relative">
+                  <button type="button" onClick={() => setShowSortMenu(!showSortMenu)}
+                    className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] px-3 text-[13px] font-medium text-[#111827] transition-colors hover:border-rose-400">
+                    <HiOutlineArrowsUpDown className="h-4 w-4 text-[#6B7280]" />
+                    {SORT_OPTIONS.find((o) => o.key === sortBy)?.label || 'Sort'}
+                    <HiOutlineChevronDown className="h-3.5 w-3.5 text-[#6B7280]" />
+                  </button>
+                  {showSortMenu && (
+                    <div className="absolute right-0 top-12 z-50 w-52 rounded-xl border border-[#E5E7EB] bg-white p-1.5 shadow-xl">
+                      {SORT_OPTIONS.map((opt) => (
+                        <button key={opt.key} type="button"
+                          onClick={() => { setSortBy(opt.key); setShowSortMenu(false) }}
+                          className={`w-full rounded-lg px-3 py-2 text-left text-[13px] font-medium transition-colors ${sortBy === opt.key ? 'bg-rose-50 text-rose-700' : 'text-[#374151] hover:bg-[#F9FAFB]'}`}>
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {hasActiveFilters && (
+                  <button type="button" onClick={clearFilters}
+                    className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-100">
+                    <HiOutlineXMark className="h-4 w-4" /> Clear
+                  </button>
+                )}
               </div>
-              <button
-                type="button"
-                onClick={() => navigate('/bill/new')}
-                className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#0F766E] px-5 text-[14px] font-bold text-white shadow-sm hover:bg-[#0F766E]/90"
-              >
-                New transaction
-                {/*<HiOutlineChevronDown className="h-4 w-4" />*/}
-              </button>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <HiOutlineFunnel className="h-4 w-4 text-[#9CA3AF]" />
+                {STATUS_OPTIONS.map((opt) => (
+                  <button key={opt.key} type="button" onClick={() => setStatusFilter(opt.key)}
+                    className={`rounded-full px-4 py-1.5 text-[12px] font-semibold transition-all ${statusFilter === opt.key ? 'bg-rose-600 text-white shadow-sm' : 'bg-[#F3F4F6] text-[#6B7280] hover:bg-[#E5E7EB]'}`}>
+                    {opt.label}
+                    {opt.key !== 'all' && (
+                      <span className="ml-1.5 opacity-70">
+                        {rows.filter((r) => {
+                          const map = { open: 'open', partial: 'partial', paid: 'closed', overdue: 'overdue' }
+                          return r.status.kind === map[opt.key]
+                        }).length}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
-          <div className="mt-2 flex justify-end gap-2 border-b border-[#E5E7EB] pb-2">
-            {/*<button*/}
-            {/*  type="button"*/}
-            {/*  className="rounded-lg p-2 text-[#64748B] hover:bg-[#F9FAFB] hover:text-[#111827]"*/}
-            {/*  title="Print"*/}
-            {/*>*/}
-            {/*  <HiOutlinePrinter className="h-5 w-5" />*/}
-            {/*</button>*/}
-            {/*<button*/}
-            {/*  type="button"*/}
-            {/*  className="rounded-lg p-2 text-[#64748B] hover:bg-[#F9FAFB] hover:text-[#111827]"*/}
-            {/*  title="Export"*/}
-            {/*>*/}
-            {/*  <HiOutlineArrowUpTray className="h-5 w-5" />*/}
-            {/*</button>*/}
-            {/*<button*/}
-            {/*  type="button"*/}
-            {/*  className="rounded-lg p-2 text-[#64748B] hover:bg-[#F9FAFB] hover:text-[#111827]"*/}
-            {/*  title="Settings"*/}
-            {/*>*/}
-            {/*  <HiOutlineCog6Tooth className="h-5 w-5" />*/}
-            {/*</button>*/}
-          </div>
-
+          {/* Table */}
           <div className="overflow-x-auto">
-            <table className="mt-2 w-full min-w-[960px] border-collapse text-left text-[13px]">
+            <table className="w-full min-w-[960px] border-collapse text-left text-[13px]">
               <thead>
-                <tr className="border-b border-[#E5E7EB] text-[11px] font-bold uppercase tracking-wide text-[#6B7280]">
-                  <th className="w-10 py-3 pr-2">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 rounded border border-[#D1D5DB] bg-white accent-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/30"
-                      checked={selected.size === bills.length && bills.length > 0}
-                      onChange={toggleAll}
-                    />
+                <tr className="border-b border-[#E5E7EB] bg-[#FAFAFA] text-[11px] font-bold uppercase tracking-wide text-[#6B7280]">
+                  <th className="w-10 py-3 pl-5 pr-2">
+                    <input type="checkbox" className="h-4 w-4 rounded border border-[#D1D5DB] bg-white accent-rose-600 focus:ring-2 focus:ring-rose-600/30"
+                      checked={selected.size === filteredAndSorted.length && filteredAndSorted.length > 0} onChange={toggleAll} />
                   </th>
-                  <th className="py-3 pr-4">
-                    <button type="button" className="inline-flex items-center gap-1 hover:text-[#111827]">
-                      Date
-                      <HiOutlineArrowsUpDown className="h-3.5 w-3.5" />
-                    </button>
-                  </th>
-                  <th className="py-3 pr-4">Type</th>
-                  <th className="py-3 pr-4">No.</th>
+                  <th className="py-3 pr-4">Date</th>
+                  <th className="py-3 pr-4">Bill No.</th>
                   <th className="py-3 pr-4">Vendor</th>
-                  <th className="py-3 pr-4">Memo</th>
+                  <th className="py-3 pr-4">Due Date</th>
                   <th className="py-3 pr-4 text-right">Amount</th>
                   <th className="py-3 pr-4">Status</th>
-                  <th className="py-3">Action</th>
+                  <th className="py-3 pr-5">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr>
-                    <td colSpan={9} className="py-8 text-center text-[13px] font-semibold text-[#64748B]">
-                      Loading bills...
-                    </td>
-                  </tr>
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i} className="border-b border-[#F3F4F6]">
+                      {Array.from({ length: 8 }).map((_, j) => (
+                        <td key={j} className="py-4 px-4"><div className="h-4 w-full animate-pulse rounded-lg bg-[#F3F4F6]" /></td>
+                      ))}
+                    </tr>
+                  ))
                 ) : error ? (
-                  <tr>
-                    <td colSpan={9} className="py-8 text-center text-[13px] font-semibold text-[#B91C1C]">
-                      {error}
-                    </td>
-                  </tr>
-                ) : bills.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="py-8 text-center text-[13px] font-semibold text-[#64748B]">
-                      No bills found.
-                    </td>
-                  </tr>
+                  <tr><td colSpan={8} className="py-12 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <HiOutlineExclamationCircle className="h-8 w-8 text-red-400" />
+                      <p className="text-[14px] font-semibold text-red-600">{error}</p>
+                    </div>
+                  </td></tr>
+                ) : filteredAndSorted.length === 0 ? (
+                  <tr><td colSpan={8} className="py-12 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <HiOutlineReceiptPercent className="h-10 w-10 text-[#D1D5DB]" />
+                      <p className="text-[14px] font-semibold text-[#6B7280]">
+                        {hasActiveFilters ? 'No bills match your filters' : 'No bills yet'}
+                      </p>
+                      {hasActiveFilters && (
+                        <button type="button" onClick={clearFilters} className="mt-1 text-[13px] font-semibold text-rose-600 hover:underline">Clear all filters</button>
+                      )}
+                    </div>
+                  </td></tr>
                 ) : (
-                  bills.map((row, i) => (
-                    <tr
-                      key={row.id}
-                      className={`border-b border-[#F3F4F6] ${i % 2 === 1 ? 'bg-[#F9FAFB]/80' : 'bg-white'}`}
-                    >
-                      <td className="py-3 pr-2 align-middle">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 rounded border border-[#D1D5DB] bg-white accent-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/30"
-                          checked={selected.has(row.id)}
-                          onChange={() => toggleRow(row.id)}
-                        />
+                  filteredAndSorted.map((row, i) => (
+                    <tr key={row.id}
+                      className={`border-b border-[#F3F4F6] transition-colors hover:bg-rose-50/30 ${selected.has(row.id) ? 'bg-rose-50/50' : i % 2 === 1 ? 'bg-[#FAFAFA]' : 'bg-white'}`}>
+                      <td className="py-3.5 pl-5 pr-2 align-middle">
+                        <input type="checkbox" className="h-4 w-4 rounded border border-[#D1D5DB] bg-white accent-rose-600 focus:ring-2 focus:ring-rose-600/30"
+                          checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} />
                       </td>
-                      <td className="py-3 pr-4 align-middle font-medium text-[#111827]">{row.txnDate}</td>
-                      <td className="py-3 pr-4 align-middle text-[#374151]">Bill</td>
-                      <td className="py-3 pr-4 align-middle font-semibold text-[#0F766E]">{row.docNumber}</td>
-                      <td className="py-3 pr-4 align-middle text-[#111827]">{row.supplier?.name || '—'}</td>
-                      <td className="py-3 pr-4 align-middle text-[#9CA3AF]">{row.memo || '—'}</td>
-                      <td className="py-3 pr-4 align-middle text-right font-semibold tabular-nums text-[#111827]">
-                        {formatMoney(row.totalAmt || 0)}
-                      </td>
-                      <td className="py-3 pr-4 align-middle">
-                        <StatusCell status={getStatusInfo(row.status)} />
-                      </td>
-                      <td className="py-3 align-middle">
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                          <button 
-                            type="button" 
-                            onClick={() => navigate(`/bill/edit/${row.id}`)}
-                            className="font-semibold text-[#0F766E] hover:underline"
-                          >
-                            View/Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => navigate('/bill/payment')}
-                            className="inline-flex items-center gap-0.5 font-semibold text-[#0F766E] hover:underline"
-                          >
-                            Make payment
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(row.id)}
-                            className="font-semibold text-[#B91C1C] hover:underline ml-2"
-                          >
-                            Delete
-                          </button>
+                      <td className="py-3.5 pr-4 align-middle font-medium text-[#111827]">{row.date}</td>
+                      <td className="py-3.5 pr-4 align-middle"><span className="font-bold text-rose-700">{row.no}</span></td>
+                      <td className="py-3.5 pr-4 align-middle font-medium text-[#111827]">{row.vendor}</td>
+                      <td className="py-3.5 pr-4 align-middle text-[#6B7280]">{row.dueDate || '—'}</td>
+                      <td className="py-3.5 pr-4 align-middle text-right font-semibold tabular-nums text-[#111827]">{formatMoney(row.amount)}</td>
+                      <td className="py-3.5 pr-4 align-middle"><StatusBadge status={row.status} /></td>
+                      <td className="py-3.5 pr-5 align-middle">
+                        <div className="flex items-center gap-2">
+                          <button type="button" onClick={() => navigate(`/bill/edit/${row.id}`)}
+                            className="rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-rose-700 transition-colors hover:bg-rose-50">Edit</button>
+                          <button type="button" onClick={() => navigate('/bill/payment')}
+                            className="rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-blue-600 transition-colors hover:bg-blue-50">Pay</button>
+                          <button type="button" onClick={() => handleDelete(row.id)}
+                            className="rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-red-500 transition-colors hover:bg-red-50">Delete</button>
                         </div>
                       </td>
                     </tr>
                   ))
                 )}
               </tbody>
-              <tfoot>
-                <tr className="border-t border-[#E5E7EB] bg-[#F3F4F6] text-[13px]">
-                  <td colSpan={6} className="px-2 py-3 font-bold text-[#111827]">
-                    Total
-                  </td>
-                  <td className="px-4 py-3 text-right font-bold tabular-nums text-[#111827]">
-                    {formatMoney(totalAmount)}
-                  </td>
-                  <td colSpan={2} className="py-3" />
-                </tr>
-              </tfoot>
+              {filteredAndSorted.length > 0 && (
+                <tfoot>
+                  <tr className="border-t-2 border-[#E5E7EB] bg-[#FAFAFA]">
+                    <td colSpan={5} className="py-3.5 pl-5 text-[13px] font-bold text-[#111827]">
+                      Total ({filteredAndSorted.length} bill{filteredAndSorted.length !== 1 ? 's' : ''})
+                    </td>
+                    <td className="py-3.5 pr-4 text-right text-[14px] font-bold tabular-nums text-[#111827]">{formatMoney(filteredTotal)}</td>
+                    <td colSpan={2} />
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
 
-          <div className="flex items-center justify-end gap-4 border-t border-[#E5E7EB] px-2 py-3 text-[13px] font-semibold text-[#0F766E]">
-            <button type="button" className="hover:underline disabled:opacity-40" disabled>
-              First
-            </button>
-            <button type="button" className="hover:underline disabled:opacity-40" disabled>
-              Previous
-            </button>
-            <span className="text-[#64748B]">
-              {pageStart}-{pageEnd} of {totalCount}
-            </span>
-            <button type="button" className="hover:underline disabled:opacity-40" disabled>
-              Next
-            </button>
-            <button type="button" className="hover:underline disabled:opacity-40" disabled>
-              Last
-            </button>
+          <div className="flex items-center justify-between border-t border-[#E5E7EB] px-5 py-3 text-[13px]">
+            <span className="font-medium text-[#6B7280]">Showing {filteredAndSorted.length} of {rows.length} bills</span>
+            {selected.size > 0 && <span className="font-semibold text-rose-600">{selected.size} selected</span>}
           </div>
         </div>
       </div>

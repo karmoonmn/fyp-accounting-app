@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useLocation } from 'react-router-dom'
 import { HiOutlinePlus, HiOutlineTrash, HiOutlineXMark } from 'react-icons/hi2'
 import CustomSelect from '../components/CustomSelect'
 import FormSkeleton from '../components/FormSkeleton'
@@ -23,16 +23,29 @@ function emptyLine(num) {
 export default function CreateInvoice() {
   const { me, meError, getFreshToken } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const { id } = useParams()
   const isEdit = !!id
 
-  const [docNumber, setDocNumber] = useState('')
-  const [txnDate, setTxnDate] = useState(todayISO())
+  const prefill = location.state?.prefill || null
+
+  const [docNumber, setDocNumber] = useState(prefill?.doc_number || '')
+  const [txnDate, setTxnDate] = useState(prefill?.txn_date || todayISO())
   const [customerId, setCustomerId] = useState('')
   const [shipAddr, setShipAddr] = useState('')
   const [shipDate, setShipDate] = useState('')
-  const [dueDate, setDueDate] = useState('')
-  const [lines, setLines] = useState([emptyLine(1), emptyLine(2)])
+  const [dueDate, setDueDate] = useState(prefill?.due_date || '')
+  const [lines, setLines] = useState(() => {
+    if (prefill?.line_items?.length) {
+      return prefill.line_items.map((l, i) => ({
+        lineNum: i + 1,
+        description: l.description || '',
+        quantity: l.quantity != null ? l.quantity.toString() : '1',
+        unitPrice: l.amount != null ? l.amount.toString() : (l.unit_price != null ? l.unit_price.toString() : '0'),
+      }))
+    }
+    return [emptyLine(1), emptyLine(2)]
+  })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
@@ -82,6 +95,13 @@ export default function CreateInvoice() {
             }
             if (invoiceData.payments && invoiceData.payments.length > 0) {
               setPaymentsAllocations(invoiceData.payments)
+            }
+          } else if (prefill) {
+            // Match customer from prefill if possible
+            const name = prefill.customer_name || prefill.vendor_name || prefill.customer || ''
+            if (name && customersData) {
+              const match = customersData.find(c => c.name.toLowerCase() === name.toLowerCase())
+              if (match) setCustomerId(match.id.toString())
             }
           }
         }
@@ -535,12 +555,12 @@ export default function CreateInvoice() {
             >
               Receive payment
             </button>
-            <button
-              type="button"
-              className="inline-flex h-10 items-center justify-center rounded-xl bg-[#374151] px-5 text-[14px] font-bold text-white hover:bg-[#4B5563]"
-            >
-              Print or Preview
-            </button>
+            {/*<button*/}
+            {/*  type="button"*/}
+            {/*  className="inline-flex h-10 items-center justify-center rounded-xl bg-[#374151] px-5 text-[14px] font-bold text-white hover:bg-[#4B5563]"*/}
+            {/*>*/}
+            {/*  Print or Preview*/}
+            {/*</button>*/}
             <button
               type="submit"
               form="create-invoice-form"
@@ -549,14 +569,14 @@ export default function CreateInvoice() {
             >
               {busy ? 'Saving…' : (isEdit ? 'Update' : 'Save')}
             </button>
-            <button
-              type="submit"
-              form="create-invoice-form"
-              disabled={busy || sendLater}
-              className="inline-flex h-10 items-center justify-center rounded-xl bg-[#0F766E] px-5 text-[14px] font-bold text-white hover:bg-[#0F766E]/90 disabled:opacity-60"
-            >
-              {busy ? 'Saving…' : (isEdit ? 'Update and send' : 'Save and send')}
-            </button>
+            {/*<button*/}
+            {/*  type="submit"*/}
+            {/*  form="create-invoice-form"*/}
+            {/*  disabled={busy || sendLater}*/}
+            {/*  className="inline-flex h-10 items-center justify-center rounded-xl bg-[#0F766E] px-5 text-[14px] font-bold text-white hover:bg-[#0F766E]/90 disabled:opacity-60"*/}
+            {/*>*/}
+            {/*  {busy ? 'Saving…' : (isEdit ? 'Update and send' : 'Save and send')}*/}
+            {/*</button>*/}
           </div>
         </div>
       </div>

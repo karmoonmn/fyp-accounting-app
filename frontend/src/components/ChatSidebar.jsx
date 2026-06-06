@@ -7,9 +7,11 @@ import {
   HiOutlineXCircle,
   HiOutlinePencilSquare,
   HiOutlineSparkles,
+  HiOutlineChatBubbleLeftRight,
 } from 'react-icons/hi2'
 import { api } from '../api'
 import { useAuth } from '../context/AuthContext'
+import { useNavigate } from 'react-router-dom'
 
 function formatMarkdown(text) {
   if (!text) return ''
@@ -72,10 +74,16 @@ function ConfirmationCard({ action, onConfirm, onCancel, onModify }) {
           <HiOutlineCheckCircle className="h-4 w-4" /> Confirm
         </button>
         <button
-          onClick={onModify}
+          onClick={() => onModify('chat')}
           className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-white border border-[#E5E7EB] px-3 py-2.5 text-[13px] font-bold text-[#374151] hover:bg-[#F9FAFB] transition-colors"
         >
-          <HiOutlinePencilSquare className="h-4 w-4" /> Modify
+          <HiOutlineChatBubbleLeftRight className="h-4 w-4" /> Modify (Chat)
+        </button>
+        <button
+          onClick={() => onModify('manual')}
+          className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-white border border-[#E5E7EB] px-3 py-2.5 text-[13px] font-bold text-[#374151] hover:bg-[#F9FAFB] transition-colors"
+        >
+          <HiOutlinePencilSquare className="h-4 w-4" /> Modify (Manual)
         </button>
         <button
           onClick={onCancel}
@@ -102,6 +110,7 @@ function TypingIndicator() {
 
 export default function ChatSidebar({ isOpen, onClose }) {
   const { idToken: token, me } = useAuth()
+  const navigate = useNavigate()
   const [messages, setMessages] = useState([
     { role: 'assistant', content: "Hi! I'm your AI Accounting Assistant. I can help you create invoices, manage expenses, analyze financial data, and forecast future trends. How can I help you today?" }
   ])
@@ -202,9 +211,23 @@ export default function ChatSidebar({ isOpen, onClose }) {
     }
   }
 
-  function handleModify() {
-    setPendingAction(null)
-    setInput('I want to modify: ')
+  function handleModify(mode) {
+    if (mode === 'manual') {
+      const summary = (pendingAction?.summary || '').toLowerCase()
+      const type = pendingAction?.action_type || ''
+      if (summary.includes('invoice') || type.includes('invoice')) {
+        navigate('/invoice/new', { state: { prefill: pendingAction } })
+      } else if (summary.includes('bill') || type.includes('bill')) {
+        navigate('/bill/new', { state: { prefill: pendingAction } })
+      } else {
+        navigate('/invoice/new', { state: { prefill: pendingAction } })
+      }
+      onClose?.()
+      setPendingAction(null)
+    } else {
+      setPendingAction(null)
+      setInput('I want to modify: ')
+    }
   }
 
   return (

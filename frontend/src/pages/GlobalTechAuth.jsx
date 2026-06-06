@@ -248,7 +248,7 @@ function LeftPanel() {
             letterSpacing: -0.3,
           }}
         >
-          GLOBALTECH INC
+          FinFlow AI
         </span>
       </div>
 
@@ -309,9 +309,9 @@ function LeftPanel() {
 
         <div className="animate-fadeup delay-4" style={{ display: 'flex', gap: 28 }}>
           {[
-            { num: '$2.4B', label: 'Processed monthly' },
+            { num: '24/7', label: 'AI assistance' },
             { num: '99%', label: 'Uptime guarantee' },
-            { num: '48h', label: 'Avg setup time' },
+            { num: '3×', label: 'Faster bookkeeping' },
           ].map((s, i) => (
             <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
               {i > 0 && <div style={{ width: 1, height: 36, background: C.border }} />}
@@ -376,15 +376,36 @@ function LeftPanel() {
 }
 
 function LoginPage({ onSwitch }) {
-  const { signIn, loading } = useAuth()
+  const { signIn, loading, resetPassword } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = React.useState('')
   const [password, setPassword] = React.useState('')
   const [error, setError] = React.useState('')
+  const [msg, setMsg] = React.useState('')
+  const [isForgot, setIsForgot] = React.useState(false)
+  const [busy, setBusy] = React.useState(false)
 
   async function onSubmit(e) {
     e.preventDefault()
     setError('')
+    setMsg('')
+
+    if (isForgot) {
+      if (!email) {
+        setError('Please enter your email')
+        return
+      }
+      setBusy(true)
+      try {
+        await resetPassword(email)
+        setMsg('Password reset email sent. Check your inbox.')
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to send reset email')
+      } finally {
+        setBusy(false)
+      }
+      return
+    }
     try {
       await signIn(email, password, { remember: true })
       navigate('/', { replace: true })
@@ -396,17 +417,22 @@ function LoginPage({ onSwitch }) {
   return (
     <div style={{ padding: '22px 28px 28px' }}>
       <h2 style={{ fontFamily: "'Sora', sans-serif", fontSize: 20, fontWeight: 700, color: C.text, letterSpacing: -0.4, marginBottom: 3 }}>
-        Welcome back
+        {isForgot ? 'Reset Password' : 'Welcome back'}
       </h2>
-      <p style={{ fontSize: 13, color: C.muted, marginBottom: 22, fontWeight: 300 }}>Sign in to your GlobalTech account</p>
+      <p style={{ fontSize: 13, color: C.muted, marginBottom: 22, fontWeight: 300 }}>
+        {isForgot ? "Enter your email and we'll send a reset link" : 'Sign in to your GlobalTech account'}
+      </p>
 
       <form onSubmit={onSubmit}>
         <InputField label="Email" type="email" placeholder="admin@company.com" icon={IconMail} value={email} onChange={(e) => setEmail(e.target.value)} />
-        <InputField label="Password" type="password" placeholder="••••••••" icon={IconLock} value={password} onChange={(e) => setPassword(e.target.value)} />
+        
+        {!isForgot && (
+          <InputField label="Password" type="password" placeholder="••••••••" icon={IconLock} value={password} onChange={(e) => setPassword(e.target.value)} />
+        )}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14, marginTop: -4 }}>
-          <button type="button" style={{ fontSize: 12, color: C.teal, fontWeight: 500, textDecoration: 'none', background: 'transparent', border: 'none', cursor: 'pointer' }}>
-            Forgot Password?
+          <button type="button" onClick={() => { setIsForgot(!isForgot); setError(''); setMsg(''); }} style={{ fontSize: 12, color: C.teal, fontWeight: 500, textDecoration: 'none', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+            {isForgot ? 'Back to login' : 'Forgot Password?'}
           </button>
         </div>
 
@@ -416,21 +442,29 @@ function LoginPage({ onSwitch }) {
           </div>
         ) : null}
 
-        <button className="gt-btn" style={{ marginBottom: 16 }} disabled={loading}>
-          {loading ? 'Signing in…' : 'Login'} <IconArrow />
+        {msg ? (
+          <div style={{ marginBottom: 12, borderRadius: 12, border: '1px solid #A7F3D0', background: '#ECFDF5', padding: '10px 12px', fontSize: 12.5, color: '#065F46' }}>
+            {msg}
+          </div>
+        ) : null}
+
+        <button className="gt-btn" style={{ marginBottom: 16 }} disabled={loading || busy}>
+          {isForgot ? (busy ? 'Sending…' : 'Send Reset Link') : (loading ? 'Signing in…' : 'Login')} <IconArrow />
         </button>
       </form>
 
-      <p style={{ textAlign: 'center', fontSize: 13, color: C.muted }}>
-        New to GlobalTech?{' '}
-        <button
-          type="button"
-          onClick={onSwitch}
-          style={{ color: C.teal, fontWeight: 600, textDecoration: 'none', background: 'transparent', border: 'none', cursor: 'pointer' }}
-        >
-          Register
-        </button>
-      </p>
+      {!isForgot && (
+        <p style={{ textAlign: 'center', fontSize: 13, color: C.muted }}>
+          New to GlobalTech?{' '}
+          <button
+            type="button"
+            onClick={onSwitch}
+            style={{ color: C.teal, fontWeight: 600, textDecoration: 'none', background: 'transparent', border: 'none', cursor: 'pointer' }}
+          >
+            Register
+          </button>
+        </p>
+      )}
     </div>
   )
 }
