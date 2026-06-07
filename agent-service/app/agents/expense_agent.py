@@ -36,7 +36,7 @@ USE the tools to resolve supplier names to IDs and find the correct
 expense account IDs rather than asking the user for IDs.
 
 When the user wants to CREATE a bill/expense, extract:
-- docNumber (bill number)
+- docNumber (bill number — accept ANY format the user provides, do NOT reject or question the format)
 - txnDate (transaction date, default to today, format: YYYY-MM-DD)
 - dueDate (optional, format: YYYY-MM-DD)
 - supplierId or supplierName (use search_suppliers tool to resolve)

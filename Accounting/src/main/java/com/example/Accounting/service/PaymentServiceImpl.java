@@ -69,7 +69,7 @@ public class PaymentServiceImpl implements PaymentService {
                     
                     if (inv.getBalance().compareTo(inv.getTotalAmt()) >= 0) {
                         inv.setBalance(inv.getTotalAmt());
-                        inv.setStatus(null); // Or open
+                        inv.setStatus(TransactionStatus.UNPAID);
                     } else if (inv.getBalance().compareTo(BigDecimal.ZERO) > 0) {
                         inv.setStatus(TransactionStatus.PARTIALLY_PAID);
                     }
@@ -81,7 +81,7 @@ public class PaymentServiceImpl implements PaymentService {
                     
                     if (bill.getBalance().compareTo(bill.getTotalAmt()) >= 0) {
                         bill.setBalance(bill.getTotalAmt());
-                        bill.setStatus(null);
+                        bill.setStatus(TransactionStatus.UNPAID);
                     } else if (bill.getBalance().compareTo(BigDecimal.ZERO) > 0) {
                         bill.setStatus(TransactionStatus.PARTIALLY_PAID);
                     }
@@ -280,7 +280,7 @@ public class PaymentServiceImpl implements PaymentService {
                     
                     if (inv.getBalance().compareTo(inv.getTotalAmt()) >= 0) {
                         inv.setBalance(inv.getTotalAmt());
-                        inv.setStatus(null);
+                        inv.setStatus(TransactionStatus.UNPAID);
                     } else if (inv.getBalance().compareTo(BigDecimal.ZERO) > 0) {
                         inv.setStatus(TransactionStatus.PARTIALLY_PAID);
                     }
@@ -292,7 +292,7 @@ public class PaymentServiceImpl implements PaymentService {
                     
                     if (bill.getBalance().compareTo(bill.getTotalAmt()) >= 0) {
                         bill.setBalance(bill.getTotalAmt());
-                        bill.setStatus(null);
+                        bill.setStatus(TransactionStatus.UNPAID);
                     } else if (bill.getBalance().compareTo(BigDecimal.ZERO) > 0) {
                         bill.setStatus(TransactionStatus.PARTIALLY_PAID);
                     }

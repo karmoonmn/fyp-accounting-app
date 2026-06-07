@@ -43,7 +43,7 @@ public class BillServiceImpl implements BillService {
         bill.setDocNumber(req.getDocNumber());
         bill.setTxnDate(req.getTxnDate());
         bill.setDueDate(req.getDueDate());
-                bill.setStatus(null);
+                bill.setStatus(TransactionStatus.UNPAID);
         bill.setCompany(company);
 
         if (req.getSupplierId() != null) {
@@ -248,7 +248,20 @@ public class BillServiceImpl implements BillService {
 
     @Override
     public List<Bill> getAllBills(Long companyId) {
-        return billRepo.findAllByCompanyId(companyId);
+        List<Bill> bills = billRepo.findAllByCompanyId(companyId);
+        java.time.LocalDate today = java.time.LocalDate.now();
+        for (Bill bill : bills) {
+            // Dynamically mark as OVERDUE if past due date and not fully paid
+            if (bill.getDueDate() != null
+                    && bill.getDueDate().isBefore(today)
+                    && bill.getStatus() != TransactionStatus.PAID
+                    && bill.getBalance() != null
+                    && bill.getBalance().compareTo(BigDecimal.ZERO) > 0) {
+                bill.setStatus(TransactionStatus.OVERDUE);
+                billRepo.save(bill);
+            }
+        }
+        return bills;
     }
 
     @Override

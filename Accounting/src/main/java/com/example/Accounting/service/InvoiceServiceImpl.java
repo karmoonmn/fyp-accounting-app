@@ -157,7 +157,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         } else if (newBalance.compareTo(total) < 0 && newBalance.compareTo(BigDecimal.ZERO) > 0) {
             invoice.setStatus(TransactionStatus.PARTIALLY_PAID);
         } else {
-            invoice.setStatus(null);
+            invoice.setStatus(TransactionStatus.UNPAID);
         }
 
         invoiceRepo.save(invoice);

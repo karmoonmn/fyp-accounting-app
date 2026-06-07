@@ -93,8 +93,11 @@ export default function MainDashboard() {
 
         let overdueCount = 0
         try {
-          const bills = await api('/api/bills', { token })
-          overdueCount = bills.filter(b => b.status === 'OVERDUE' || (b.status === 'UNPAID' && new Date(b.dueDate) < new Date())).length
+          const bills = await api('/bill', { token })
+          overdueCount = bills.filter(b =>
+            b.status === 'OVERDUE' ||
+            (b.status !== 'PAID' && b.dueDate && new Date(b.dueDate) < new Date() && (b.balance ?? b.totalAmt) > 0)
+          ).length
         } catch (e) {}
 
         setSummaryCards([

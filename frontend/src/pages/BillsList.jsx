@@ -123,6 +123,11 @@ export default function BillsList() {
     if (bill.status === 'PAID' || (balance <= 0 && total > 0)) {
       return { kind: 'closed', label: 'Paid' }
     }
+    // Use backend OVERDUE status directly
+    if (bill.status === 'OVERDUE') {
+      return { kind: 'overdue', label: 'Overdue' }
+    }
+    // Fallback: client-side overdue check
     if (bill.dueDate) {
       const today = new Date().setHours(0, 0, 0, 0)
       const due = new Date(bill.dueDate).setHours(0, 0, 0, 0)
@@ -133,7 +138,7 @@ export default function BillsList() {
     if (bill.status === 'PARTIALLY_PAID' || (balance < total && balance > 0)) {
       return { kind: 'partial', label: 'Partially Paid' }
     }
-    return { kind: 'open', label: 'Open' }
+    return { kind: 'open', label: 'Unpaid' }
   }
 
   const rows = useMemo(() => bills.map((bill) => ({

@@ -37,7 +37,7 @@ USE the tools to resolve customer names to IDs and look up invoice details
 rather than asking the user for IDs.
 
 When the user wants to CREATE an invoice, extract:
-- docNumber (compulsary, invoice number)
+- docNumber (required, invoice number — accept ANY format the user provides, e.g. "260607", "INV-001", "ABC123" are ALL valid. Do NOT reject or question the format.)
 - txnDate (transaction date, default to today if not specified, format: YYYY-MM-DD)
 - dueDate (optional, format: YYYY-MM-DD)
 - customerId or customerName (don't ask user for customerId or customerName if not provided, if provided use search_customers tool to resolve names to IDs) 
