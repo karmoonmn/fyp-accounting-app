@@ -260,7 +260,7 @@ export default function CreateBill() {
                 <div className="text-right">
                   <p className="text-[11px] font-bold uppercase tracking-wide text-[#6B7280]">Balance due</p>
                   <p className="mt-1 text-[28px] font-bold tabular-nums text-[#111827]">
-                    S${displayBalance.toFixed(2)}
+                    MYR${displayBalance.toFixed(2)}
                   </p>
                 </div>
               </div>

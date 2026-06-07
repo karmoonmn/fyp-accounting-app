@@ -141,12 +141,18 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .map(Line::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         
-        BigDecimal amountPaid = invoice.getTotalAmt() != null && invoice.getBalance() != null ?
-                invoice.getTotalAmt().subtract(invoice.getBalance()) : BigDecimal.ZERO;
+        BigDecimal amountPaid = BigDecimal.ZERO;
+        if (invoice.getTotalAmt() != null) {
+            if (invoice.getBalance() != null) {
+                amountPaid = invoice.getTotalAmt().subtract(invoice.getBalance());
+            } else {
+                amountPaid = invoice.getTotalAmt();
+            }
+        }
         
         BigDecimal newBalance = total.subtract(amountPaid);
-        if (amountPaid.compareTo(total) > 0) {
-            throw new AccountingException(ErrorCode.INVALID_PAYMENT_AMOUNT, "Cannot reduce invoice total below the amount already paid.");
+        if (newBalance.compareTo(BigDecimal.ZERO) < 0) {
+            throw new AccountingException(ErrorCode.INVALID_PAYMENT_AMOUNT, "Invoice total cannot be less than the amount already paid.");
         }
 
         invoice.setTotalAmt(total);
