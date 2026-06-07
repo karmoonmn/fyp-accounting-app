@@ -46,25 +46,25 @@ export default function BankAccountHistory() {
   useEffect(() => {
     if (!me || meError) return
     let cancelled = false
-    ;(async () => {
-      setLoading(true)
-      try {
-        const token = await getFreshToken()
-        if (!token || cancelled) return
-        const data = await api('/account/bank/ledger', { token })
-        if (!cancelled) {
-          setRows(data || [])
+      ; (async () => {
+        setLoading(true)
+        try {
+          const token = await getFreshToken()
+          if (!token || cancelled) return
+          const data = await api('/account/bank/ledger', { token })
+          if (!cancelled) {
+            setRows(data || [])
+          }
+        } catch (err) {
+          if (!cancelled) {
+            setError(err instanceof Error ? err.message : 'Could not fetch bank ledger')
+          }
+        } finally {
+          if (!cancelled) {
+            setLoading(false)
+          }
         }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Could not fetch bank ledger')
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      }
-    })()
+      })()
     return () => {
       cancelled = true
     }
@@ -267,7 +267,16 @@ export default function BankAccountHistory() {
                   filteredAndSorted.map((row, i) => (
                     <tr
                       key={row.id || i}
-                      className={`border-b border-[#F3F4F6] transition-colors hover:bg-blue-50/30 ${i % 2 === 1 ? 'bg-[#FAFAFA]' : 'bg-white'}`}
+                      onClick={() => {
+                        if (row.paymentId) {
+                          if (row.paymentDocType === 'Bill') {
+                            navigate(`/bill/payment/edit/${row.paymentId}`)
+                          } else if (row.paymentDocType === 'Invoice') {
+                            navigate(`/payment/edit/${row.paymentId}`)
+                          }
+                        }
+                      }}
+                      className={`border-b border-[#F3F4F6] transition-colors hover:bg-blue-50/30 ${row.paymentId ? 'cursor-pointer' : ''} ${i % 2 === 1 ? 'bg-[#FAFAFA]' : 'bg-white'}`}
                     >
                       <td className="whitespace-nowrap px-5 py-3.5 align-top font-medium text-[#111827]">
                         {row.date}

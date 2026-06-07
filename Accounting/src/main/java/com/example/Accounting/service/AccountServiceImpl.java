@@ -13,7 +13,9 @@ import com.example.Accounting.dto.AccountTreeResponse;
 import com.example.Accounting.dto.LedgerLineDto;
 import com.example.Accounting.model.Company;
 import com.example.Accounting.model.JournalLine;
+import com.example.Accounting.model.Payment;
 import com.example.Accounting.repo.CompanyRepo;
+import com.example.Accounting.repo.PaymentRepo;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import lombok.AllArgsConstructor;
@@ -22,6 +24,8 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @AllArgsConstructor
@@ -31,6 +35,7 @@ public class AccountServiceImpl implements AccountService {
     private final AccountMapper accountMapper;
     private final JournalEntryLineRepo journalEntryLineRepo;
     private final CompanyRepo companyRepo;
+    private final PaymentRepo paymentRepo;
 
     @Override
     public List<LedgerLineDto> getBankLedger() {
@@ -40,6 +45,10 @@ public class AccountServiceImpl implements AccountService {
                 .orElseThrow(() -> new RuntimeException("Bank account not found"));
 
         List<JournalLine> lines = journalEntryLineRepo.findByAccount_IdOrderByJournalEntry_TxnDateAsc(bankAccount.getId());
+        
+        List<Payment> allPayments = paymentRepo.findAllByCompanyIdOrderByTxnDateDesc(companyId);
+        Map<String, Payment> paymentMap = allPayments.stream()
+                .collect(Collectors.toMap(Payment::getDocNumber, p -> p, (p1, p2) -> p1));
 
         List<LedgerLineDto> dtoList = new ArrayList<>();
         BigDecimal balance = BigDecimal.ZERO;
@@ -61,6 +70,20 @@ public class AccountServiceImpl implements AccountService {
                     .payment(credit.compareTo(BigDecimal.ZERO) > 0 ? credit : null)
                     .balance(balance)
                     .build();
+                    
+            if (line.getJournalEntry() != null && line.getJournalEntry().getDocNumber() != null) {
+                String docNumber = line.getJournalEntry().getDocNumber();
+                if (docNumber.startsWith("JE-PAY-")) {
+                    String paymentDocNumber = docNumber.substring(7);
+                    Payment payment = paymentMap.get(paymentDocNumber);
+                    if (payment != null) {
+                        dto.setPaymentId(payment.getId());
+                        dto.setPaymentDocType("BILL_PAYMENT".equals(payment.getPaymentType()) ? "Bill" : "Invoice");
+                        dto.setRefType("BILL_PAYMENT".equals(payment.getPaymentType()) ? "Bill Payment" : "Invoice Receipt");
+                    }
+                }
+            }
+
             dtoList.add(dto);
         }
 

@@ -22,4 +22,8 @@ public class LedgerLineDto {
     private BigDecimal deposit;
     private BigDecimal payment;
     private BigDecimal balance;
+    
+    // For navigation to payment forms
+    private Long paymentId;
+    private String paymentDocType;
 }

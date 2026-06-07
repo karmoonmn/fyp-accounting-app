@@ -43,6 +43,7 @@ export default function App() {
           <Route path="/invoice/payment" element={<InvoicePayment />} />
           <Route path="/payment/edit/:id" element={<InvoicePayment />} />
           <Route path="/payments" element={<PaymentList />} />
+          <Route path="/bill/payment/edit/:id" element={<BillPayment />} />
           <Route path="/bill/new" element={<CreateBill />} />
           <Route path="/bill/edit/:id" element={<CreateBill />} />
           <Route path="/customers" element={<CustomerList />} />
