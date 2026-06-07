@@ -15,6 +15,7 @@ import {
   HiOutlineSparkles,
   HiOutlineUsers,
   HiOutlineBookOpen,
+  HiOutlineBanknotes,
 } from 'react-icons/hi2'
 import { useAuth } from '../context/AuthContext'
 import FloatingAiChat from './FloatingAiChat'
@@ -42,9 +43,11 @@ export default function DashboardLayout({ children, activeNav = 'dashboard' }) {
         navigate('/bills')
         setExpandedNav(prev => ({ ...prev, bills: true }))
       },
-      subItems: [
-        { key: 'suppliers', label: 'Suppliers', onClick: () => navigate('/suppliers') },
-      ]
+      // subItems: [
+      //   { key: 'suppliers', label: 'Suppliers', onClick: () => navigate('/suppliers') },
+      //   { key: 'bill-payments', label: 'Payments', onClick: () => navigate('/payments') },
+      //
+      // ]
     },
     { 
       key: 'invoices', 
@@ -54,11 +57,13 @@ export default function DashboardLayout({ children, activeNav = 'dashboard' }) {
         navigate('/invoices')
         setExpandedNav(prev => ({ ...prev, invoices: true }))
       },
-      subItems: [
-        { key: 'customers', label: 'Customers', onClick: () => navigate('/customers') },
-        { key: 'payments', label: 'Payments', onClick: () => navigate('/payments') },
-      ]
+      // subItems: [
+      //   { key: 'customers', label: 'Customers', onClick: () => navigate('/customers') },
+      //   { key: 'payments', label: 'Payments', onClick: () => navigate('/payments') },
+      // ]
     },
+    { key: 'bill-payments', icon: HiOutlineBanknotes, label: 'Payments', onClick: () => navigate('/payments') },
+
     { key: 'bank', icon: HiOutlineCreditCard, label: 'Bank Account', onClick: () => navigate('/bank') },
 
     { key: 'reports', icon: HiOutlineChartBar, label: 'Reports', onClick: () => navigate('/reports') },

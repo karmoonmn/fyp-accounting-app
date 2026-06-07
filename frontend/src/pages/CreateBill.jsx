@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import { Link, useNavigate, useParams, useLocation } from 'react-router-dom'
-import { HiOutlinePlus, HiOutlineTrash, HiOutlineXMark } from 'react-icons/hi2'
+import { HiOutlinePlus, HiOutlineTrash, HiOutlineXMark, HiOutlineChevronDown } from 'react-icons/hi2'
 import CustomSelect from '../components/CustomSelect'
 import FormSkeleton from '../components/FormSkeleton'
 import QuickCreateSupplierModal from '../components/QuickCreateSupplierModal'
@@ -56,6 +56,7 @@ export default function CreateBill() {
   const [activeLineIndex, setActiveLineIndex] = useState(null)
   const [balance, setBalance] = useState(0)
   const [paymentsAllocations, setPaymentsAllocations] = useState([])
+  const [showPaymentMenu, setShowPaymentMenu] = useState(false)
 
   useEffect(() => {
     if (!me || meError) return
@@ -493,18 +494,37 @@ export default function CreateBill() {
               type="submit"
               form="create-bill-form"
               disabled={busy}
-              className="inline-flex h-10 items-center justify-center rounded-xl bg-[#0F766E] px-5 text-[14px] font-bold text-white hover:bg-[#0F766E]/90 disabled:opacity-60"
+              className="inline-flex h-10 items-center justify-center rounded-xl bg-[#374151] px-5 text-[14px] font-bold text-white hover:bg-[#4B5563] disabled:opacity-60"
             >
               {busy ? 'Saving…' : (isEdit ? 'Update' : 'Save')}
             </button>
-            <button
-              type="button"
-              onClick={() => navigate('/bill/payment')}
-              className="inline-flex h-10 items-center justify-center rounded-xl bg-[#0F766E] px-5 text-[14px] font-bold text-white hover:bg-[#0F766E]/90"
-              title="After the bill is saved"
-            >
-              Make payment
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowPaymentMenu(!showPaymentMenu)}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#0F766E] px-5 text-[14px] font-bold text-white hover:bg-[#0F766E]/90"
+                title="Record a payment"
+              >
+                Record payment
+                <HiOutlineChevronDown className="h-4 w-4" />
+              </button>
+              {showPaymentMenu && (
+                <div className="absolute bottom-full right-0 mb-2 w-56 overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-lg z-50">
+                  <button
+                    onClick={() => navigate('/invoice/payment')}
+                    className="w-full px-4 py-3 text-left text-[13px] font-semibold text-[#111827] hover:bg-[#F9FAFB]"
+                  >
+                    Receive payment (Invoice)
+                  </button>
+                  <button
+                    onClick={() => navigate('/bill/payment')}
+                    className="w-full px-4 py-3 text-left text-[13px] font-semibold text-[#111827] hover:bg-[#F9FAFB]"
+                  >
+                    Make payment (Bill)
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
