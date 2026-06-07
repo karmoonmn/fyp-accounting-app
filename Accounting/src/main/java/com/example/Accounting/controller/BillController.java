@@ -39,9 +39,23 @@ public class BillController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Bill>> getAllBills(
+    public ResponseEntity<List<java.util.Map<String, Object>>> getAllBills(
             @RequestHeader("X-Company-Id") Long companyId) {
-        return ResponseEntity.ok(billService.getAllBills(companyId));
+        List<java.util.Map<String, Object>> result = billService.getAllBills(companyId).stream().map(bill -> {
+            java.util.Map<String, Object> map = new java.util.HashMap<>();
+            map.put("id", bill.getId());
+            map.put("docNumber", bill.getDocNumber());
+            map.put("txnDate", bill.getTxnDate());
+            map.put("dueDate", bill.getDueDate());
+            map.put("totalAmt", bill.getTotalAmt());
+            map.put("balance", bill.getBalance());
+            map.put("status", bill.getStatus());
+            if (bill.getSupplier() != null) {
+                map.put("supplier", java.util.Map.of("id", bill.getSupplier().getId(), "name", bill.getSupplier().getName()));
+            }
+            return map;
+        }).toList();
+        return ResponseEntity.ok(result);
     }
 
     @DeleteMapping("/{id}")

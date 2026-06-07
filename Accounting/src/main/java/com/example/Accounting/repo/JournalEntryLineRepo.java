@@ -12,6 +12,12 @@ import java.util.List;
 public interface JournalEntryLineRepo extends JpaRepository<JournalLine, Long> {
     List<JournalLine> findByAccount_IdOrderByJournalEntry_TxnDateAsc(Long accountId);
 
+    @Query("SELECT jl.account.id, SUM(COALESCE(jl.debit, 0)), SUM(COALESCE(jl.credit, 0)) " +
+           "FROM JournalLine jl JOIN jl.journalEntry je " +
+           "WHERE je.company.id = :companyId " +
+           "GROUP BY jl.account.id")
+    List<Object[]> getAllAccountBalancesByCompanyId(@Param("companyId") Long companyId);
+
     @Query("SELECT jl.account, SUM(COALESCE(jl.debit, 0)), SUM(COALESCE(jl.credit, 0)) " +
            "FROM JournalLine jl JOIN jl.journalEntry je " +
            "WHERE je.company.id = :companyId AND je.txnDate <= :endDate " +

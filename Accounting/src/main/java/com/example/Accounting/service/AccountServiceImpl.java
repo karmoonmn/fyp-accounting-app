@@ -210,11 +210,22 @@ public class AccountServiceImpl implements AccountService {
     @Override
     public List<AccountTreeResponse> getAccountTree() {
         Long companyId = SecurityUtils.requireCompanyId();
+        
+        // Bulk fetch all balances to prevent N+1 queries
+        List<Object[]> balanceData = journalEntryLineRepo.getAllAccountBalancesByCompanyId(companyId);
+        java.util.Map<Long, BigDecimal> balanceMap = new java.util.HashMap<>();
+        for (Object[] row : balanceData) {
+            Long accId = (Long) row[0];
+            BigDecimal debit = (BigDecimal) row[1];
+            BigDecimal credit = (BigDecimal) row[2];
+            balanceMap.put(accId, debit.subtract(credit)); // We will adjust sign by AccountType
+        }
+
         List<Account> roots = accountRepo.findRootAccountsByCompanyId(companyId);
-        return roots.stream().map(this::mapToTreeResponse).toList();
+        return roots.stream().map(acc -> mapToTreeResponse(acc, balanceMap)).toList();
     }
 
-    private AccountTreeResponse mapToTreeResponse(Account account) {
+    private AccountTreeResponse mapToTreeResponse(Account account, java.util.Map<Long, BigDecimal> balanceMap) {
         AccountTreeResponse response = new AccountTreeResponse();
         response.setId(account.getId());
         response.setAccountCode(account.getAccountCode());
@@ -222,32 +233,25 @@ public class AccountServiceImpl implements AccountService {
         response.setAccountType(account.getAccountType());
         response.setIsActive(account.getIsActive());
         
-        List<AccountTreeResponse> children = account.getChildren().stream().map(this::mapToTreeResponse).toList();
+        List<AccountTreeResponse> children = account.getChildren().stream()
+                .map(child -> mapToTreeResponse(child, balanceMap)).toList();
         response.setChildren(children);
         
-        BigDecimal balance = calculateAccountBalance(account);
+        BigDecimal netDebit = balanceMap.getOrDefault(account.getId(), BigDecimal.ZERO);
+        BigDecimal balance;
+        
+        if (account.getAccountType() == AccountType.ASSET || account.getAccountType() == AccountType.EXPENSE) {
+            balance = netDebit;
+        } else {
+            balance = netDebit.negate();
+        }
+        
         for (AccountTreeResponse child : children) {
             balance = balance.add(child.getBalance() != null ? child.getBalance() : BigDecimal.ZERO);
         }
         response.setBalance(balance);
         
         return response;
-    }
-    
-    private BigDecimal calculateAccountBalance(Account account) {
-        List<JournalLine> lines = journalEntryLineRepo.findByAccount_IdOrderByJournalEntry_TxnDateAsc(account.getId());
-        BigDecimal balance = BigDecimal.ZERO;
-        for (JournalLine line : lines) {
-            BigDecimal debit = line.getDebit() != null ? line.getDebit() : BigDecimal.ZERO;
-            BigDecimal credit = line.getCredit() != null ? line.getCredit() : BigDecimal.ZERO;
-            
-            if (account.getAccountType() == AccountType.ASSET || account.getAccountType() == AccountType.EXPENSE) {
-                balance = balance.add(debit).subtract(credit);
-            } else {
-                balance = balance.add(credit).subtract(debit);
-            }
-        }
-        return balance;
     }
 
     private String generateAccountCode(AccountType type, Long companyId) {

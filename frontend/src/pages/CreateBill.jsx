@@ -54,6 +54,8 @@ export default function CreateBill() {
   const [showSupplierModal, setShowSupplierModal] = useState(false)
   const [showAccountModal, setShowAccountModal] = useState(false)
   const [activeLineIndex, setActiveLineIndex] = useState(null)
+  const [balance, setBalance] = useState(0)
+  const [paymentsAllocations, setPaymentsAllocations] = useState([])
 
   useEffect(() => {
     if (!me || meError) return
@@ -106,6 +108,14 @@ export default function CreateBill() {
                   }))
                 )
               }
+              if (billData.balance != null) {
+                setBalance(Number.parseFloat(billData.balance))
+              } else {
+                setBalance(Number.parseFloat(billData.totalAmt) || 0)
+              }
+              if (billData.payments && billData.payments.length > 0) {
+                setPaymentsAllocations(billData.payments)
+              }
             } else if (prefill) {
               const name = prefill.supplier_name || prefill.vendor_name || prefill.supplier || ''
               if (name && supps) {
@@ -133,6 +143,8 @@ export default function CreateBill() {
       return sum + a
     }, 0)
   }, [lines])
+
+  const displayBalance = isEdit ? balance : lineTotal
 
   function updateLine(index, patch) {
     setLines((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)))
@@ -242,7 +254,15 @@ export default function CreateBill() {
         ) : (
           <form id="create-bill-form" onSubmit={handleSubmit} className="space-y-6">
             <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
-              <h3 className="text-[#111827] text-[16px] font-bold">Bill details</h3>
+              <div className="flex items-start justify-between">
+                <h3 className="text-[#111827] text-[16px] font-bold">Bill details</h3>
+                <div className="text-right">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-[#6B7280]">Balance due</p>
+                  <p className="mt-1 text-[28px] font-bold tabular-nums text-[#111827]">
+                    S${displayBalance.toFixed(2)}
+                  </p>
+                </div>
+              </div>
               <div className="mt-4 grid grid-cols-3 gap-4">
                 <label className="text-[13px] font-semibold text-[#374151]">
                   Bill no.
@@ -397,21 +417,53 @@ export default function CreateBill() {
               ) : null}
             </div>
 
-            <div className="flex items-center justify-between gap-4 pt-2">
-              {/*<button*/}
-              {/*  type="button"*/}
-              {/*  onClick={() => setMakePayment((v) => !v)}*/}
-              {/*  className={`inline-flex h-10 items-center justify-center rounded-xl border px-4 text-[13px] font-bold ${*/}
-              {/*    makePayment*/}
-              {/*      ? 'border-[#0F766E] bg-[#CCFBF1] text-[#0F766E]'*/}
-              {/*      : 'border-[#E5E7EB] bg-white text-[#111827] hover:bg-[#F9FAFB]'*/}
-              {/*  }`}*/}
-              {/*>*/}
-              {/*  Make payment after saving*/}
-              {/*</button>*/}
-              <div>
-
+            {isEdit && paymentsAllocations.length > 0 && (
+              <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
+                <h3 className="text-[#111827] text-[16px] font-bold">Payments Made</h3>
+                <div className="mt-4 overflow-x-auto rounded-xl border border-[#E5E7EB]">
+                  <table className="w-full min-w-[600px] border-collapse text-left text-[13px]">
+                    <thead>
+                      <tr className="border-b border-[#E5E7EB] bg-[#FAFAFA] text-[11px] font-bold uppercase tracking-wide text-[#6B7280]">
+                        <th className="px-4 py-3">Date</th>
+                        <th className="px-4 py-3">Reference No.</th>
+                        <th className="px-4 py-3">Paid From</th>
+                        <th className="px-4 py-3 text-right">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paymentsAllocations.map((alloc, idx) => (
+                        <tr key={alloc.id || idx} className={idx % 2 === 1 ? 'bg-[#F9FAFB]/80' : 'bg-white'}>
+                          <td className="border-b border-[#F3F4F6] px-4 py-3 font-medium text-[#111827]">
+                            {alloc.payment?.txnDate || '—'}
+                          </td>
+                          <td className="border-b border-[#F3F4F6] px-4 py-3 font-semibold text-[#0F766E]">
+                            {alloc.payment?.id ? (
+                              <button
+                                type="button"
+                                onClick={(e) => { e.preventDefault(); navigate(`/payment/edit/${alloc.payment.id}`); }}
+                                className="hover:underline"
+                              >
+                                {alloc.payment?.docNumber || '—'}
+                              </button>
+                            ) : (
+                              alloc.payment?.docNumber || '—'
+                            )}
+                          </td>
+                          <td className="border-b border-[#F3F4F6] px-4 py-3 text-[#64748B]">
+                            {alloc.payment?.depositTo || 'Bank'}
+                          </td>
+                          <td className="border-b border-[#F3F4F6] px-4 py-3 text-right font-bold tabular-nums text-[#111827]">
+                            {Number.parseFloat(alloc.amount || 0).toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
+            )}
+
+            <div className="flex items-center justify-end gap-4 pt-2">
               <div className="w-full max-w-[420px] space-y-2 text-[13px]">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-[#64748B]">Total</span>
@@ -419,7 +471,7 @@ export default function CreateBill() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-[#64748B]">Balance due</span>
-                  <span className="font-bold tabular-nums text-[#111827]">{lineTotal.toFixed(2)}</span>
+                  <span className="font-bold tabular-nums text-[#111827]">{displayBalance.toFixed(2)}</span>
                 </div>
               </div>
             </div>
@@ -443,7 +495,7 @@ export default function CreateBill() {
               disabled={busy}
               className="inline-flex h-10 items-center justify-center rounded-xl bg-[#0F766E] px-5 text-[14px] font-bold text-white hover:bg-[#0F766E]/90 disabled:opacity-60"
             >
-              {busy ? 'Saving…' : 'Save'}
+              {busy ? 'Saving…' : (isEdit ? 'Update' : 'Save')}
             </button>
             <button
               type="button"
