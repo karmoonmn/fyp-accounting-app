@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { HiOutlineChevronDown, HiOutlineXMark } from 'react-icons/hi2'
 import { api } from '../api'
 import { useAuth } from '../context/AuthContext'
 
-function formatRm(n) {
-  return new Intl.NumberFormat('en-MY', {
+function formatMoney(n) {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'MYR',
+    currency: 'USD',
     minimumFractionDigits: 2,
   }).format(n)
 }
@@ -18,6 +18,8 @@ function todayISO() {
 
 export default function BillPayment() {
   const navigate = useNavigate()
+  const { id } = useParams()
+  const isEdit = !!id
   const { me, meError, getFreshToken } = useAuth()
   const [payee, setPayee] = useState('')
   const [email, setEmail] = useState('')
@@ -44,10 +46,37 @@ export default function BillPayment() {
       try {
         const token = await getFreshToken()
         if (!token || cancelled) return
-        const data = await api('/bill', { token })
+        const [data, paymentData] = await Promise.all([
+          api('/bill', { token }),
+          isEdit ? api(`/payment/${id}`, { token }) : Promise.resolve(null)
+        ])
         if (!cancelled) {
-          const openBills = (data || []).filter((b) => (b.balance ?? b.totalAmt) > 0)
-          setBills(openBills)
+          if (paymentData) {
+            setRefNo(paymentData.docNumber || '')
+            setPaymentDate(paymentData.txnDate || todayISO())
+            setBankAccount(paymentData.depositTo || 'Bank')
+            
+            const sel = new Set()
+            const pmap = {}
+            if (paymentData.allocations) {
+              paymentData.allocations.forEach(a => {
+                if (a.bill) {
+                  const idStr = a.bill.id.toString()
+                  sel.add(idStr)
+                  pmap[idStr] = a.amount.toString()
+                }
+              })
+            }
+            setSelected(sel)
+            setPayments(pmap)
+          }
+
+          const visibleBills = (data || []).filter((b) => {
+            const isOutstanding = (b.balance ?? b.totalAmt) > 0
+            const isPaidByThis = paymentData?.allocations?.some(a => a.bill?.id === b.id)
+            return isOutstanding || isPaidByThis
+          })
+          setBills(visibleBills)
         }
       } catch (err) {
         if (!cancelled) {
@@ -115,13 +144,21 @@ export default function BillPayment() {
     setBusy(true)
     try {
       const token = await getFreshToken()
-      const payload = {
-        refNo: refNo || undefined,
+      const body = {
+        refNo: refNo.trim(),
         paymentDate,
         depositTo: bankAccount,
-        payments: paymentItems
+        payments: paymentItems,
       }
-      await api('/bill/payment', { method: 'POST', token, body: payload })
+
+      const url = isEdit ? `/payment/${id}` : '/bill/payment'
+      const method = isEdit ? 'PUT' : 'POST'
+
+      await api(url, {
+        method,
+        token,
+        body,
+      })
       navigate('/bills')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not submit payment')
@@ -143,7 +180,9 @@ export default function BillPayment() {
     <div className="min-h-screen bg-white pb-20">
       <div className="flex items-center justify-between border-b border-[#E5E7EB] bg-[#F9FAFB] px-6 py-4">
         <div className="min-w-0">
-          <h2 className="truncate text-[18px] font-bold text-[#111827]">Bill Payment #{refNo}</h2>
+          <h2 className="truncate text-[18px] font-bold text-[#111827]">
+            {isEdit ? 'Edit Bill Payment' : 'Bill Payment'} {refNo && `#${refNo}`}
+          </h2>
         </div>
         <button
           type="button"
@@ -202,7 +241,7 @@ export default function BillPayment() {
             <div className="flex items-start justify-end">
               <div className="text-right">
                 <p className="text-[11px] font-bold uppercase tracking-wide text-[#6B7280]">Amount paid</p>
-                <p className="mt-1 text-[28px] font-bold tabular-nums text-[#111827]">{formatRm(amountPaid)}</p>
+                <p className="mt-1 text-[28px] font-bold tabular-nums text-[#111827]">{formatMoney(amountPaid)}</p>
               </div>
             </div>
           </div>
@@ -264,7 +303,7 @@ export default function BillPayment() {
             <div className="w-[220px]">
               <input
                 readOnly
-                value={formatRm(amountPaid)}
+                value={formatMoney(amountPaid)}
                 className="h-10 w-full rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] px-3 text-right text-[13px] font-bold text-[#111827]"
               />
             </div>
@@ -320,10 +359,10 @@ export default function BillPayment() {
                       </td>
                       <td className="border-b border-[#F3F4F6] px-4 py-3 text-[#111827]">{b.dueDate || '—'}</td>
                       <td className="border-b border-[#F3F4F6] px-4 py-3 text-right tabular-nums text-[#111827]">
-                        {formatRm(b.totalAmt || 0)}
+                        {formatMoney(b.totalAmt || 0)}
                       </td>
                       <td className="border-b border-[#F3F4F6] px-4 py-3 text-right tabular-nums text-[#111827]">
-                        {formatRm(b.balance ?? b.totalAmt)}
+                        {formatMoney(b.balance ?? b.totalAmt)}
                       </td>
                       <td className="border-b border-[#F3F4F6] px-4 py-3">
                         <input
@@ -334,7 +373,7 @@ export default function BillPayment() {
                           value={payments[b.id] ?? ''}
                           onChange={(e) => setPayments((p) => ({ ...p, [b.id]: e.target.value }))}
                           className="h-10 w-full rounded-xl border border-[#E5E7EB] bg-white px-3 text-right text-[13px] font-bold text-[#111827] focus:border-[#0F766E] focus:outline-none disabled:bg-[#F9FAFB] disabled:text-[#9CA3AF]"
-                          placeholder={selected.has(b.id) ? formatRm(b.balance ?? b.totalAmt) : ''}
+                          placeholder={selected.has(b.id) ? formatMoney(b.balance ?? b.totalAmt) : ''}
                         />
                       </td>
                     </tr>
@@ -368,7 +407,7 @@ export default function BillPayment() {
               disabled={busy}
               className="inline-flex h-10 items-center justify-center rounded-xl bg-[#0F766E] px-5 text-[14px] font-bold text-white hover:bg-[#0F766E]/90 disabled:opacity-60"
             >
-              {busy ? 'Saving...' : 'Save and close'}
+              {busy ? 'Saving...' : (isEdit ? 'Update payment' : 'Save and close')}
               <HiOutlineChevronDown className="ml-2 h-4 w-4" />
             </button>
           </div>

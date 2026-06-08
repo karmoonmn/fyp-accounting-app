@@ -16,9 +16,9 @@ import {
 import DashboardLayout from '../components/DashboardLayout'
 
 function formatMoney(n) {
-  return new Intl.NumberFormat('en-SG', {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'SGD',
+    currency: 'USD',
     minimumFractionDigits: 2,
   }).format(n)
 }
@@ -72,7 +72,7 @@ export default function PaymentList() {
   }, [me, meError, getFreshToken])
 
   async function handleDelete(id) {
-    if (!window.confirm('Are you sure you want to delete this payment? This will revert the balances on affected invoices.')) return
+    if (!window.confirm('Are you sure you want to delete this payment? This will revert the balances on affected invoices or bills.')) return
     try {
       const token = await getFreshToken()
       if (!token) return
@@ -341,7 +341,7 @@ export default function PaymentList() {
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                           <button
                             type="button"
-                            onClick={() => navigate(`/payment/edit/${row.id}`)}
+                            onClick={() => navigate(row.docType === 'Bill' ? `/bill/payment/edit/${row.id}` : `/payment/edit/${row.id}`)}
                             className="font-semibold text-[#0F766E] hover:underline"
                           >
                             View/Edit

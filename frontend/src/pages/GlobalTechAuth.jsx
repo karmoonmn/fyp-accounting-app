@@ -539,7 +539,7 @@ function RegisterPage({ onSwitch }) {
       <h2 style={{ fontFamily: "'Sora', sans-serif", fontSize: 19, fontWeight: 700, color: C.text, letterSpacing: -0.4, marginBottom: 2 }}>
         Create your account
       </h2>
-      <p style={{ fontSize: 13, color: C.muted, marginBottom: 16, fontWeight: 300 }}>Set up your GlobalTech workspace</p>
+      {/*<p style={{ fontSize: 13, color: C.muted, marginBottom: 16, fontWeight: 300 }}>Set up your GlobalTech workspace</p>*/}
 
       <form onSubmit={onSubmit}>
         <div style={{ display: 'flex', gap: 16 }}>
@@ -706,44 +706,44 @@ export default function GlobalTechAuth({ initialPage = 'login' }) {
             </div>
           </div>
 
-          <div
-            style={{
-              position: 'absolute',
-              bottom: 60,
-              right: 60,
-              background: 'rgba(255,255,255,0.88)',
-              border: '1px solid rgba(255,255,255,0.95)',
-              borderRadius: 16,
-              padding: '13px 18px',
-              backdropFilter: 'blur(12px)',
-              boxShadow: '0 8px 32px rgba(45,157,143,0.14)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-            }}
-          >
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 9,
-                background: `linear-gradient(135deg, ${C.teal}, ${C.tealDark})`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                boxShadow: '0 3px 10px rgba(45,157,143,0.3)',
-              }}
-            >
-              <IconTrendUp size={15} />
-            </div>
-            <div>
-              <div style={{ fontSize: 11, color: C.muted, fontWeight: 300, marginBottom: 2 }}>Monthly Revenue</div>
-              <div style={{ fontFamily: "'Sora', sans-serif", fontWeight: 700, fontSize: 13.5, color: C.text }}>
-                $250,000 <span style={{ color: C.teal, fontSize: 11, fontWeight: 500 }}>↑ 12.5%</span>
-              </div>
-            </div>
-          </div>
+          {/*<div*/}
+          {/*  style={{*/}
+          {/*    position: 'absolute',*/}
+          {/*    bottom: 60,*/}
+          {/*    right: 60,*/}
+          {/*    background: 'rgba(255,255,255,0.88)',*/}
+          {/*    border: '1px solid rgba(255,255,255,0.95)',*/}
+          {/*    borderRadius: 16,*/}
+          {/*    padding: '13px 18px',*/}
+          {/*    backdropFilter: 'blur(12px)',*/}
+          {/*    boxShadow: '0 8px 32px rgba(45,157,143,0.14)',*/}
+          {/*    display: 'flex',*/}
+          {/*    alignItems: 'center',*/}
+          {/*    gap: 12,*/}
+          {/*  }}*/}
+          {/*/!*>*!/*/}
+          {/*/!*  <div*!/*/}
+          {/*/!*    style={{*!/*/}
+          {/*      width: 32,*/}
+          {/*      height: 32,*/}
+          {/*      borderRadius: 9,*/}
+          {/*      background: `linear-gradient(135deg, ${C.teal}, ${C.tealDark})`,*/}
+          {/*      display: 'flex',*/}
+          {/*      alignItems: 'center',*/}
+          {/*      justifyContent: 'center',*/}
+          {/*      flexShrink: 0,*/}
+          {/*      boxShadow: '0 3px 10px rgba(45,157,143,0.3)',*/}
+          {/*    }}*/}
+          {/*  >*/}
+          {/*    /!*<IconTrendUp size={15} />*!/*/}
+          {/*  </div>*/}
+          {/*  <div>*/}
+          {/*    /!*<div style={{ fontSize: 11, color: C.muted, fontWeight: 300, marginBottom: 2 }}>Monthly Revenue</div>*!/*/}
+          {/*    /!*<div style={{ fontFamily: "'Sora', sans-serif", fontWeight: 700, fontSize: 13.5, color: C.text }}>*!/*/}
+          {/*    /!*  $250,000 <span style={{ color: C.teal, fontSize: 11, fontWeight: 500 }}>↑ 12.5%</span>*!/*/}
+          {/*    /!*</div>*!/*/}
+          {/*  </div>*/}
+          {/*</div>*/}
         </div>
       </div>
     </>

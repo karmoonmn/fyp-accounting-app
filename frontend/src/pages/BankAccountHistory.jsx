@@ -16,10 +16,10 @@ import {
 } from 'react-icons/hi2'
 import DashboardLayout from '../components/DashboardLayout'
 
-function formatRm(n) {
-  return new Intl.NumberFormat('en-MY', {
+function formatMoney(n) {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'MYR',
+    currency: 'USD',
     minimumFractionDigits: 2,
   }).format(n)
 }
@@ -46,25 +46,25 @@ export default function BankAccountHistory() {
   useEffect(() => {
     if (!me || meError) return
     let cancelled = false
-    ;(async () => {
-      setLoading(true)
-      try {
-        const token = await getFreshToken()
-        if (!token || cancelled) return
-        const data = await api('/account/bank/ledger', { token })
-        if (!cancelled) {
-          setRows(data || [])
+      ; (async () => {
+        setLoading(true)
+        try {
+          const token = await getFreshToken()
+          if (!token || cancelled) return
+          const data = await api('/account/bank/ledger', { token })
+          if (!cancelled) {
+            setRows(data || [])
+          }
+        } catch (err) {
+          if (!cancelled) {
+            setError(err instanceof Error ? err.message : 'Could not fetch bank ledger')
+          }
+        } finally {
+          if (!cancelled) {
+            setLoading(false)
+          }
         }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Could not fetch bank ledger')
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      }
-    })()
+      })()
     return () => {
       cancelled = true
     }
@@ -135,16 +135,16 @@ export default function BankAccountHistory() {
           </div>
           <div className="text-right">
             <p className="text-[12px] font-semibold uppercase tracking-wide text-[#6B7280]">Ending Balance</p>
-            <p className="text-[32px] font-bold tabular-nums text-[#111827] leading-none mt-1">{formatRm(stats.endingBalance)}</p>
+            <p className="text-[32px] font-bold tabular-nums text-[#111827] leading-none mt-1">{formatMoney(stats.endingBalance)}</p>
           </div>
         </div>
 
         {/* Summary Cards */}
         <div className="grid grid-cols-3 gap-4">
           {[
-            { label: 'Total Deposits', value: formatRm(stats.totalDeposits), color: 'border-l-emerald-500', icon: HiOutlineArrowDownTray, iconBg: 'bg-emerald-50 text-emerald-600' },
-            { label: 'Total Payments', value: formatRm(stats.totalPayments), color: 'border-l-red-500', icon: HiOutlineArrowUpTray, iconBg: 'bg-red-50 text-red-600' },
-            { label: 'Net Flow', value: formatRm(stats.netFlow), color: stats.netFlow >= 0 ? 'border-l-blue-500' : 'border-l-amber-500', icon: HiOutlineBanknotes, iconBg: stats.netFlow >= 0 ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600' },
+            { label: 'Total Deposits', value: formatMoney(stats.totalDeposits), color: 'border-l-emerald-500', icon: HiOutlineArrowDownTray, iconBg: 'bg-emerald-50 text-emerald-600' },
+            { label: 'Total Payments', value: formatMoney(stats.totalPayments), color: 'border-l-red-500', icon: HiOutlineArrowUpTray, iconBg: 'bg-red-50 text-red-600' },
+            { label: 'Net Flow', value: formatMoney(stats.netFlow), color: stats.netFlow >= 0 ? 'border-l-blue-500' : 'border-l-amber-500', icon: HiOutlineBanknotes, iconBg: stats.netFlow >= 0 ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600' },
           ].map((card, i) => (
             <div
               key={i}
@@ -267,7 +267,16 @@ export default function BankAccountHistory() {
                   filteredAndSorted.map((row, i) => (
                     <tr
                       key={row.id || i}
-                      className={`border-b border-[#F3F4F6] transition-colors hover:bg-blue-50/30 ${i % 2 === 1 ? 'bg-[#FAFAFA]' : 'bg-white'}`}
+                      onClick={() => {
+                        if (row.paymentId) {
+                          if (row.paymentDocType === 'Bill') {
+                            navigate(`/bill/payment/edit/${row.paymentId}`)
+                          } else if (row.paymentDocType === 'Invoice') {
+                            navigate(`/payment/edit/${row.paymentId}`)
+                          }
+                        }
+                      }}
+                      className={`border-b border-[#F3F4F6] transition-colors hover:bg-blue-50/30 ${row.paymentId ? 'cursor-pointer' : ''} ${i % 2 === 1 ? 'bg-[#FAFAFA]' : 'bg-white'}`}
                     >
                       <td className="whitespace-nowrap px-5 py-3.5 align-top font-medium text-[#111827]">
                         {row.date}
@@ -285,16 +294,16 @@ export default function BankAccountHistory() {
                       <td className="px-3 py-3.5 align-top text-[#9CA3AF]">{row.memo || '—'}</td>
                       <td className="px-3 py-3.5 align-top text-right tabular-nums">
                         {row.payment != null && row.payment > 0 ? (
-                          <span className="font-semibold text-red-600">{formatRm(row.payment)}</span>
+                          <span className="font-semibold text-red-600">{formatMoney(row.payment)}</span>
                         ) : <span className="text-[#D1D5DB]">—</span>}
                       </td>
                       <td className="px-3 py-3.5 align-top text-right tabular-nums">
                         {row.deposit != null && row.deposit > 0 ? (
-                          <span className="font-semibold text-emerald-600">{formatRm(row.deposit)}</span>
+                          <span className="font-semibold text-emerald-600">{formatMoney(row.deposit)}</span>
                         ) : <span className="text-[#D1D5DB]">—</span>}
                       </td>
                       <td className="px-3 py-3.5 align-top text-right tabular-nums font-bold text-[#111827]">
-                        {formatRm(row.balance)}
+                        {formatMoney(row.balance)}
                       </td>
                     </tr>
                   ))

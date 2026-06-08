@@ -202,8 +202,10 @@ public class ReportServiceImpl implements ReportService {
 
         if (invoices != null) {
             for (Invoice inv : invoices) {
-                long daysOverdue = ChronoUnit.DAYS.between(inv.getDueDate() != null ? inv.getDueDate() : inv.getTxnDate(), today);
-                AgingItemDto item = new AgingItemDto(inv.getDocNumber(), inv.getCustomer().getName(), inv.getDueDate(), inv.getBalance());
+                LocalDate dateToCompare = inv.getDueDate() != null ? inv.getDueDate() : inv.getTxnDate();
+                long daysOverdue = dateToCompare != null ? ChronoUnit.DAYS.between(dateToCompare, today) : 0;
+                String customerName = inv.getCustomer() != null ? inv.getCustomer().getName() : "Unknown";
+                AgingItemDto item = new AgingItemDto(inv.getDocNumber(), customerName, inv.getDueDate(), inv.getBalance());
                 totalAmount = totalAmount.add(inv.getBalance());
                 bucketItem(daysOverdue, item, current, days1to30, days31to60, days61to90, days90Plus);
             }
@@ -211,8 +213,10 @@ public class ReportServiceImpl implements ReportService {
 
         if (bills != null) {
             for (Bill bill : bills) {
-                long daysOverdue = ChronoUnit.DAYS.between(bill.getDueDate() != null ? bill.getDueDate() : bill.getTxnDate(), today);
-                AgingItemDto item = new AgingItemDto(bill.getDocNumber(), bill.getSupplier().getName(), bill.getDueDate(), bill.getBalance());
+                LocalDate dateToCompare = bill.getDueDate() != null ? bill.getDueDate() : bill.getTxnDate();
+                long daysOverdue = dateToCompare != null ? ChronoUnit.DAYS.between(dateToCompare, today) : 0;
+                String supplierName = bill.getSupplier() != null ? bill.getSupplier().getName() : "Unknown";
+                AgingItemDto item = new AgingItemDto(bill.getDocNumber(), supplierName, bill.getDueDate(), bill.getBalance());
                 totalAmount = totalAmount.add(bill.getBalance());
                 bucketItem(daysOverdue, item, current, days1to30, days31to60, days61to90, days90Plus);
             }

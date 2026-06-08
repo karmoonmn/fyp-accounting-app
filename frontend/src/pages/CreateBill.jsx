@@ -98,7 +98,7 @@ export default function CreateBill() {
               setTxnDate(billData.txnDate || todayISO())
               setDueDate(billData.dueDate || '')
               setSupplierId(billData.supplier ? billData.supplier.id.toString() : '')
-              
+
               if (billData.lines && billData.lines.length > 0) {
                 setLines(
                   billData.lines.map((l) => ({
@@ -194,7 +194,10 @@ export default function CreateBill() {
         throw new Error('Please add at least one line with an account and amount > 0.')
       }
 
-      await api('/bill', { method: 'POST', token, body: payload })
+      const url = isEdit ? `/bill/${id}` : '/bill'
+      const method = isEdit ? 'PUT' : 'POST'
+
+      await api(url, { method, token, body: payload })
       navigate('/bills')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create bill')
@@ -260,7 +263,7 @@ export default function CreateBill() {
                 <div className="text-right">
                   <p className="text-[11px] font-bold uppercase tracking-wide text-[#6B7280]">Balance due</p>
                   <p className="mt-1 text-[28px] font-bold tabular-nums text-[#111827]">
-                    MYR${displayBalance.toFixed(2)}
+                    ${displayBalance.toFixed(2)}
                   </p>
                 </div>
               </div>
@@ -529,15 +532,15 @@ export default function CreateBill() {
         </div>
       </div>
 
-      <QuickCreateSupplierModal 
-        isOpen={showSupplierModal} 
+      <QuickCreateSupplierModal
+        isOpen={showSupplierModal}
         onClose={() => setShowSupplierModal(false)}
         onSuccess={(newSupplier) => {
           setSuppliers(prev => [...prev, newSupplier])
           setSupplierId(newSupplier.id.toString())
         }}
       />
-      
+
       <QuickCreateAccountModal
         isOpen={showAccountModal}
         onClose={() => setShowAccountModal(false)}

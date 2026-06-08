@@ -5,9 +5,9 @@ import { api } from '../api'
 import { useAuth } from '../context/AuthContext'
 
 function formatMoney(n) {
-  return new Intl.NumberFormat('en-SG', {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'SGD',
+    currency: 'USD',
     minimumFractionDigits: 2,
   }).format(n)
 }

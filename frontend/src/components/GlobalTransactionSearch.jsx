@@ -5,11 +5,11 @@ import { useAuth } from '../context/AuthContext'
 import { api } from '../api'
 
 function formatMoney(n) {
-  return new Intl.NumberFormat('en-SG', {
+  if (n == null) return ''
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'SGD',
-    minimumFractionDigits: 2,
-  }).format(n || 0)
+    currency: 'USD',
+  }).format(n)
 }
 
 export default function GlobalTransactionSearch() {
