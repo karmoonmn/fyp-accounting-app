@@ -16,6 +16,7 @@ import {
   HiOutlineUsers,
   HiOutlineBookOpen,
   HiOutlineBanknotes,
+  HiOutlineChatBubbleLeftRight,
 } from 'react-icons/hi2'
 import { useAuth } from '../context/AuthContext'
 import FloatingAiChat from './FloatingAiChat'
@@ -74,6 +75,7 @@ export default function DashboardLayout({ children, activeNav = 'dashboard' }) {
       onClick: () => navigate('/analytics'),
     },
     { key: 'accounts', icon: HiOutlineBookOpen, label: 'Chart of Accounts', onClick: () => navigate('/accounts') },
+    // { key: 'chats', icon: HiOutlineChatBubbleLeftRight, label: 'Chats', onClick: () => navigate('/chats') },
     // { key: 'quick', icon: HiOutlineSparkles, label: 'Quick Action', onClick: () => navigate('/quick') },
   ]
 

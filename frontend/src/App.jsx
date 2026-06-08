@@ -12,6 +12,7 @@ import Dashboard from './pages/Dashboard'
 import InvoiceList from './pages/InvoiceList'
 import MainDashboard from './pages/MainDashboard'
 import FinancialReports from './pages/reports/FinancialReports'
+import ChatsPage from './pages/ChatsPage'
 
 import Login from './pages/Login'
 import Register from './pages/Register'
@@ -54,6 +55,7 @@ export default function App() {
           <Route path="/accounts" element={<ChartOfAccounts />} />
           <Route path="/accounts/new" element={<CreateEditAccount />} />
           <Route path="/accounts/edit/:id" element={<CreateEditAccount />} />
+          <Route path="/chats" element={<ChatsPage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/register-company" element={<RegisterCompany />} />

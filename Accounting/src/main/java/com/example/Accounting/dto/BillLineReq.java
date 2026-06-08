@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 
 @Data
 public class BillLineReq {
+    private Long id;
     private int lineNum;
     private String description;
     private BigDecimal quantity;

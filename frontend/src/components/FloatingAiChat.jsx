@@ -9,9 +9,11 @@ import {
   HiOutlinePencilSquare,
   HiOutlineChatBubbleLeftRight,
   HiOutlineArrowPath,
+  HiOutlineArrowsPointingOut,
 } from 'react-icons/hi2'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
+import { supabase } from '../supabase'
 
 const QUICK_PROMPTS = [
   { emoji: '📊', text: 'What was my revenue last month?' },
@@ -97,7 +99,7 @@ function ConfirmationCard({ action, onConfirm, onCancel, onModify }) {
 /* ─── Main Component ───────────────────────────────────────────────────────── */
 
 export default function FloatingAiChat() {
-  const { idToken: token, me, getFreshToken } = useAuth()
+  const { idToken: token, me, getFreshToken, firebaseUser } = useAuth()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
@@ -110,6 +112,7 @@ export default function FloatingAiChat() {
   ])
   const [isLoading, setIsLoading] = useState(false)
   const [threadId, setThreadId] = useState(() => localStorage.getItem('ai_thread_id') || null)
+  const [conversationId, setConversationId] = useState(() => localStorage.getItem('ai_conversation_id') || null)
   const [pendingAction, setPendingAction] = useState(null)
   const [selectedFile, setSelectedFile] = useState(null)
   const listRef = useRef(null)
@@ -117,6 +120,7 @@ export default function FloatingAiChat() {
   const inputRef = useRef(null)
 
   const companyId = me?.company?.id || me?.companyId || 1
+  const userId = me?.userId  // Firebase UID string — must match ChatsPage
 
   useEffect(() => {
     if (!open) return
@@ -132,46 +136,38 @@ export default function FloatingAiChat() {
     listRef.current.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' })
   }, [open, messages, isLoading])
 
-  // Fetch history on initial load if we have a threadId
+  // Load conversation history from Supabase on mount
   useEffect(() => {
-    async function fetchHistory() {
-      if (!threadId) return
+    async function loadHistory() {
+      if (!userId || !conversationId) return
       try {
-        const res = await fetch(`${API_BASE}/api/agent/history/${threadId}`, {
-          headers: { 'X-Company-Id': String(companyId) },
-        })
-        if (!res.ok) return
-        const data = await res.json()
-        if (data.messages && data.messages.length > 0) {
-          // Format messages for UI, filtering out duplicates
-          const uniqueMsgs = []
-          const seen = new Set()
-          data.messages.forEach((m, i) => {
-            const key = `${m.role}-${m.content}`
-            if (!seen.has(key)) {
-              seen.add(key)
-              uniqueMsgs.push({
-                id: `hist-${i}`,
-                role: m.role,
-                text: m.content
-              })
-            }
-          })
+        const { data, error } = await supabase
+          .from('message')
+          .select('*')
+          .eq('conversation_id', conversationId)
+          .order('created_at', { ascending: true })
+        
+        if (!error && data && data.length > 0) {
+          const formattedMsgs = data.map((m, i) => ({
+            id: m.id || `hist-${i}`,
+            role: m.role,
+            text: m.content
+          }))
           setMessages([
             {
               id: 'welcome',
               role: 'assistant',
               text: "Hi! I'm your AI Accounting Assistant. I can help create invoices, manage expenses, analyze finances, and forecast trends.\n\nHow can I help you today?",
             },
-            ...uniqueMsgs
+            ...formattedMsgs
           ])
         }
       } catch (err) {
-        console.error("Failed to load chat history", err)
+        console.error("Failed to load chat history from Supabase", err)
       }
     }
-    fetchHistory()
-  }, [])
+    loadHistory()
+  }, [userId, conversationId])
 
   async function send(text) {
     const trimmed = (text ?? input).trim()
@@ -179,11 +175,49 @@ export default function FloatingAiChat() {
     if (isLoading) return
     const freshToken = await getFreshToken()
     if (!freshToken) return
+
+    // Ensure we have a conversation in Supabase
+    let convId = conversationId
+    if (!convId && userId) {
+      try {
+        const { data, error } = await supabase
+          .from('conversation')
+          .insert([{ user_id: userId }])
+          .select()
+          .single()
+        if (!error && data) {
+          convId = data.id
+          setConversationId(convId)
+          localStorage.setItem('ai_conversation_id', convId)
+        }
+      } catch (err) {
+        console.error('Failed to create conversation', err)
+      }
+    }
+
     const userText = trimmed || `[Uploaded: ${selectedFile?.name}]`
     setMessages((prev) => [...prev, { id: `u-${Date.now()}`, role: 'user', text: userText }])
     setInput('')
     setIsLoading(true)
+
     try {
+      // Save user message to Supabase
+      if (convId) {
+        await supabase.from('message').insert([{ conversation_id: convId, role: 'user', content: userText }])
+        // const { error } = await supabase
+        //     .from('message')
+        //     .insert([
+        //       {
+        //         conversation_id: convId,
+        //         role: 'assistant',
+        //         content: aiText,
+        //         created_at: new Date().toISOString()
+        //       }
+        //     ])
+        //
+        // if (error) console.error('Supabase insert error:', error)
+      }
+
       const formData = new FormData()
       formData.append('message', userText)
       formData.append('company_id', companyId.toString())
@@ -200,10 +234,21 @@ export default function FloatingAiChat() {
         setThreadId(data.thread_id)
         localStorage.setItem('ai_thread_id', data.thread_id)
       }
-      setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', text: data.response || 'I processed your request.' }])
+      const aiText = data.response || 'I processed your request.'
+      setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', text: aiText }])
+
+      // Save assistant message to Supabase
+      if (convId) {
+        await supabase.from('message').insert([{ conversation_id: convId, role: 'assistant', content: aiText }])
+      }
+
       if (data.requires_confirmation && data.proposed_action) setPendingAction(data.proposed_action)
     } catch (err) {
-      setMessages((prev) => [...prev, { id: `e-${Date.now()}`, role: 'assistant', text: `Sorry, an error occurred: ${err.message}` }])
+      const errText = `Sorry, an error occurred: ${err.message}`
+      setMessages((prev) => [...prev, { id: `e-${Date.now()}`, role: 'assistant', text: errText }])
+      if (convId) {
+        await supabase.from('message').insert([{ conversation_id: convId, role: 'assistant', content: errText }])
+      }
     } finally {
       setIsLoading(false)
       setSelectedFile(null)
@@ -222,9 +267,17 @@ export default function FloatingAiChat() {
         body: JSON.stringify({ action: 'confirm' }),
       })
       const data = await res.json()
-      setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', text: data.response || 'Action confirmed.' }])
+      const text = data.response || 'Action confirmed.'
+      setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', text }])
+      if (conversationId) {
+        await supabase.from('message').insert([{ conversation_id: conversationId, role: 'assistant', content: text }])
+      }
     } catch (err) {
-      setMessages((prev) => [...prev, { id: `e-${Date.now()}`, role: 'assistant', text: `Error: ${err.message}` }])
+      const errText = `Error: ${err.message}`
+      setMessages((prev) => [...prev, { id: `e-${Date.now()}`, role: 'assistant', text: errText }])
+      if (conversationId) {
+        await supabase.from('message').insert([{ conversation_id: conversationId, role: 'assistant', content: errText }])
+      }
     } finally { setIsLoading(false) }
   }
 
@@ -239,9 +292,17 @@ export default function FloatingAiChat() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${freshToken}` },
       })
       const data = await res.json()
-      setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', text: data.response || 'Action cancelled.' }])
+      const text = data.response || 'Action cancelled.'
+      setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', text }])
+      if (conversationId) {
+        await supabase.from('message').insert([{ conversation_id: conversationId, role: 'assistant', content: text }])
+      }
     } catch (err) {
-      setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', text: 'Action cancelled.' }])
+      const text = 'Action cancelled.'
+      setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', text }])
+      if (conversationId) {
+        await supabase.from('message').insert([{ conversation_id: conversationId, role: 'assistant', content: text }])
+      }
     } finally { setIsLoading(false) }
   }
 
@@ -272,9 +333,20 @@ export default function FloatingAiChat() {
       text: "Hi! I'm your AI Accounting Assistant. I can help create invoices, manage expenses, analyze finances, and forecast trends.\n\nHow can I help you today?",
     }])
     setThreadId(null)
+    setConversationId(null)
     localStorage.removeItem('ai_thread_id')
+    localStorage.removeItem('ai_conversation_id')
     setPendingAction(null)
     setInput('')
+  }
+
+  function handleOpenInChats() {
+    if (conversationId) {
+      navigate(`/chats?conversation=${conversationId}`)
+    } else {
+      navigate('/chats')
+    }
+    setOpen(false)
   }
 
   return (
@@ -329,6 +401,14 @@ export default function FloatingAiChat() {
               </div>
             </div>
             <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={handleOpenInChats}
+                className="rounded-lg p-2 text-white/70 hover:bg-white/20 hover:text-white transition-all active:scale-95"
+                title="Open in Chats page"
+              >
+                <HiOutlineArrowsPointingOut className="h-5 w-5" />
+              </button>
               <button
                 type="button"
                 onClick={handleNewChat}

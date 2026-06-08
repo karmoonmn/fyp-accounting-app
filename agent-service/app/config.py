@@ -10,7 +10,8 @@ class Settings(BaseSettings):
     # ── AI / LLM ──────────────────────────────────────────────
     google_api_key: str = "not-set"
     google_api_keys: str = "" # Comma-separated list of keys
-    gemini_model: str = "gemini-2.5-flash"
+    # gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-2.5-flash-lite"
 
     # ── Spring Boot Backend ───────────────────────────────────
     spring_boot_base_url: str = "http://localhost:8080"

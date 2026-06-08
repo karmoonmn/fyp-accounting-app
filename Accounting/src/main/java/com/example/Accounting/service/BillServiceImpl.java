@@ -143,10 +143,6 @@ public class BillServiceImpl implements BillService {
     @Override
     @Transactional
     public Bill updateBill(Long id, BillReq req, Long companyId) {
-        // Since editing a bill can complicate payments and journal entries,
-        // we'll allow basic update but normally you'd want to revert the old JE and create a new one.
-        // For simplicity in this implementation, we will delete the old JE, update the bill, and recreate the JE.
-        
         Bill bill = billRepo.findByIdAndCompanyId(id, companyId)
                 .orElseThrow(() -> new RuntimeException("Bill not found"));
 
@@ -154,11 +150,7 @@ public class BillServiceImpl implements BillService {
             throw new RuntimeException("Cannot update a bill that has payments allocated to it.");
         }
 
-        Optional<JournalEntry> jeOpt = journalEntryRepo.findByDocNumberAndCompanyId("JE-BILL-" + bill.getDocNumber(), companyId);
-        if (jeOpt.isPresent()) {
-            journalEntryRepo.delete(jeOpt.get());
-        }
-
+        String oldDocNumber = bill.getDocNumber();
         bill.setDocNumber(req.getDocNumber());
         bill.setTxnDate(req.getTxnDate());
         bill.setDueDate(req.getDueDate());
@@ -171,10 +163,13 @@ public class BillServiceImpl implements BillService {
             bill.setSupplier(null);
         }
 
-        bill.getLines().clear();
+        // Update existing lines or create new ones
         BigDecimal totalAmt = BigDecimal.ZERO;
 
-        if (req.getLines() != null) {
+        if (req.getLines() != null && !req.getLines().isEmpty()) {
+            // Keep track of line IDs that are being updated
+            java.util.Set<Long> updatedLineIds = new java.util.HashSet<>();
+            
             for (var lineReq : req.getLines()) {
                 BigDecimal amount = lineReq.getAmount();
                 if (amount == null) {
@@ -188,27 +183,52 @@ public class BillServiceImpl implements BillService {
 
                 Account account = accountRepo.findByIdAndCompanyId(lineReq.getAccountId(), companyId)
                         .orElseThrow(() -> new RuntimeException("Account not found for line"));
-                if (account.getAccountType() == AccountType.REVENUE) {
-                    throw new RuntimeException("Revenue accounts cannot be used on Bills.");
+
+                Line line;
+                if (lineReq.getId() != null) {
+                    // Update existing line
+                    line = bill.getLines().stream()
+                            .filter(l -> l.getId().equals(lineReq.getId()))
+                            .findFirst()
+                            .orElseGet(() -> {
+                                Line newLine = new Line();
+                                newLine.setId(lineReq.getId());
+                                bill.getLines().add(newLine);
+                                return newLine;
+                            });
+                } else {
+                    // Create new line
+                    line = new Line();
+                    bill.getLines().add(line);
                 }
 
-                Line line = Line.builder()
-                        .lineNum(lineReq.getLineNum())
-                        .amount(amount)
-                        .quantity(lineReq.getQuantity())
-                        .unitPrice(lineReq.getUnitPrice())
-                        .description(lineReq.getDescription())
-                        .account(account)
-                        .transaction(bill)
-                        .build();
-                bill.getLines().add(line);
+                line.setLineNum(lineReq.getLineNum());
+                line.setAmount(amount);
+                line.setQuantity(lineReq.getQuantity());
+                line.setUnitPrice(lineReq.getUnitPrice());
+                line.setDescription(lineReq.getDescription());
+                line.setAccount(account);
+                line.setTransaction(bill);
+                
+                if (lineReq.getId() != null) {
+                    updatedLineIds.add(lineReq.getId());
+                }
             }
+            
+            // Remove lines that were not in the update request (deleted lines)
+            bill.getLines().removeIf(line -> line.getId() != null && !updatedLineIds.contains(line.getId()));
+        } else {
+            // No lines provided - clear all
+            bill.getLines().clear();
         }
 
         bill.setTotalAmt(totalAmt);
         bill.setBalance(totalAmt);
 
-        // Create new Journal Entry
+        // Delete old journal entry and create new one
+        Optional<JournalEntry> jeOpt = journalEntryRepo.findByDocNumberAndCompanyId("JE-BILL-" + oldDocNumber, companyId);
+        jeOpt.ifPresent(journalEntryRepo::delete);
+
         Account apAccount = accountRepo.findByNameAndCompanyId("Accounts Payable", companyId)
                 .orElseThrow(() -> new RuntimeException("Accounts Payable not found"));
 
@@ -231,12 +251,12 @@ public class BillServiceImpl implements BillService {
                 .totalCredit(totalAmt)
                 .build();
 
-        journalEntryService.saveJournalEntry(journalEntry);
+        journalEntry = journalEntryRepo.save(journalEntry);
         for (JournalLine jl : jeLines) {
             jl.setJournalEntry(journalEntry);
         }
         journalEntryLineRepo.saveAll(jeLines);
-        
+
         return billRepo.save(bill);
     }
 
