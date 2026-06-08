@@ -95,8 +95,8 @@ export default function DashboardLayout({ children, activeNav = 'dashboard' }) {
     return null
   }
 
-  const companyTitle = me?.companyId ? `Company #${me.companyId}` : 'Company'
-  const userName = me?.userId ? `User #${me.userId}` : 'User'
+  const companyTitle = me?.companyName || (me?.companyId ? `Company #${me.companyId}` : 'Company')
+  const userName = me?.userName || (me?.userId ? `User #${me.userId}` : 'User')
   const userEmail = firebaseUser.email || '—'
 
   return (
@@ -107,14 +107,13 @@ export default function DashboardLayout({ children, activeNav = 'dashboard' }) {
       >
         {!sidebarCollapsed ? (
           <div className="px-5 py-6">
-            <div className="bg-[#F3F4F6] rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-[#E5E7EB] transition-all">
+            <div className="bg-[#F3F4F6] rounded-xl px-4 py-3 flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-[#9CA3AF] flex items-center justify-center shrink-0">
                 <span className="text-white text-sm font-semibold">
                   {(companyTitle[0] || 'C').toUpperCase()}
                 </span>
               </div>
               <span className="text-[#111827] text-[15px] font-semibold flex-1">{companyTitle}</span>
-              <HiOutlineChevronDown className="w-4 h-4 text-[#6B7280]" />
             </div>
             {meError ? (
               <p className="mt-3 text-xs font-medium text-[#B91C1C]">

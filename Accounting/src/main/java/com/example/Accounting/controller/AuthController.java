@@ -1,6 +1,8 @@
 package com.example.Accounting.controller;
 
 import com.example.Accounting.model.User;
+import com.example.Accounting.repo.CompanyRepo;
+import com.example.Accounting.repo.UserRepo;
 import com.example.Accounting.request.RegisterCompanyRequest;
 import com.example.Accounting.request.RegisterUserRequest;
 import com.example.Accounting.security.AccountingPrincipal;
@@ -25,17 +27,32 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthRegistrationService authRegistrationService;
+    private final UserRepo userRepo;
+    private final CompanyRepo companyRepo;
 
     @GetMapping("/me")
     public MeResponse me() {
         AccountingPrincipal p = SecurityUtils.currentPrincipal()
                 .orElseThrow(() -> new IllegalStateException("Unauthenticated"));
+                
+        String userName = null;
+        if (p.getUserId() != null) {
+            userName = userRepo.findById(p.getUserId()).map(User::getName).orElse(null);
+        }
+        
+        String companyName = null;
+        if (p.getCompanyId() != null) {
+            companyName = companyRepo.findById(p.getCompanyId()).map(c -> c.getName()).orElse(null);
+        }
+
         return MeResponse.builder()
                 .userId(p.getUserId())
                 .companyId(p.getCompanyId())
                 .firebaseUid(p.getFirebaseUid())
                 .role(p.getRole().name())
                 .devSuperAdmin(p.isDevSuperAdmin())
+                .userName(userName)
+                .companyName(companyName)
                 .build();
     }
 
@@ -80,6 +97,8 @@ public class AuthController {
         private String firebaseUid;
         private String role;
         private boolean devSuperAdmin;
+        private String userName;
+        private String companyName;
     }
 
     @Data

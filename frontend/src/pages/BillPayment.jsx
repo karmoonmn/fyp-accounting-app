@@ -4,10 +4,10 @@ import { HiOutlineChevronDown, HiOutlineXMark } from 'react-icons/hi2'
 import { api } from '../api'
 import { useAuth } from '../context/AuthContext'
 
-function formatRm(n) {
-  return new Intl.NumberFormat('en-MY', {
+function formatMoney(n) {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'MYR',
+    currency: 'USD',
     minimumFractionDigits: 2,
   }).format(n)
 }
@@ -241,7 +241,7 @@ export default function BillPayment() {
             <div className="flex items-start justify-end">
               <div className="text-right">
                 <p className="text-[11px] font-bold uppercase tracking-wide text-[#6B7280]">Amount paid</p>
-                <p className="mt-1 text-[28px] font-bold tabular-nums text-[#111827]">{formatRm(amountPaid)}</p>
+                <p className="mt-1 text-[28px] font-bold tabular-nums text-[#111827]">{formatMoney(amountPaid)}</p>
               </div>
             </div>
           </div>
@@ -303,7 +303,7 @@ export default function BillPayment() {
             <div className="w-[220px]">
               <input
                 readOnly
-                value={formatRm(amountPaid)}
+                value={formatMoney(amountPaid)}
                 className="h-10 w-full rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] px-3 text-right text-[13px] font-bold text-[#111827]"
               />
             </div>
@@ -359,10 +359,10 @@ export default function BillPayment() {
                       </td>
                       <td className="border-b border-[#F3F4F6] px-4 py-3 text-[#111827]">{b.dueDate || '—'}</td>
                       <td className="border-b border-[#F3F4F6] px-4 py-3 text-right tabular-nums text-[#111827]">
-                        {formatRm(b.totalAmt || 0)}
+                        {formatMoney(b.totalAmt || 0)}
                       </td>
                       <td className="border-b border-[#F3F4F6] px-4 py-3 text-right tabular-nums text-[#111827]">
-                        {formatRm(b.balance ?? b.totalAmt)}
+                        {formatMoney(b.balance ?? b.totalAmt)}
                       </td>
                       <td className="border-b border-[#F3F4F6] px-4 py-3">
                         <input
@@ -373,7 +373,7 @@ export default function BillPayment() {
                           value={payments[b.id] ?? ''}
                           onChange={(e) => setPayments((p) => ({ ...p, [b.id]: e.target.value }))}
                           className="h-10 w-full rounded-xl border border-[#E5E7EB] bg-white px-3 text-right text-[13px] font-bold text-[#111827] focus:border-[#0F766E] focus:outline-none disabled:bg-[#F9FAFB] disabled:text-[#9CA3AF]"
-                          placeholder={selected.has(b.id) ? formatRm(b.balance ?? b.totalAmt) : ''}
+                          placeholder={selected.has(b.id) ? formatMoney(b.balance ?? b.totalAmt) : ''}
                         />
                       </td>
                     </tr>
