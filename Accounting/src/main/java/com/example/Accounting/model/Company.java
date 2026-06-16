@@ -21,6 +21,10 @@ public class Company {
     private String phoneNumber;
     private String addr;
 
+    private String registrationNumber;
+    private String currency;
+    private String fiscalYearStart;
+
     @OneToMany(mappedBy = "company", cascade = CascadeType.ALL)
     @JsonManagedReference
     private List<User> users;

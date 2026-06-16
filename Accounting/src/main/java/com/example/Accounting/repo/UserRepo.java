@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -17,4 +18,6 @@ public interface UserRepo extends JpaRepository<User, Long> {
     boolean existsByFirebaseUid(String firebaseUid);
 
     boolean existsByEmailIgnoreCaseAndCompanyId(String email, Long companyId);
+
+    List<User> findByCompanyId(Long companyId);
 }

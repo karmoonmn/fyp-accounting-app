@@ -151,33 +151,29 @@ export default function ChatsPage() {
 
   useEffect(() => {
     const convIdFromUrl = searchParams.get('conversation')
-    if (!convIdFromUrl) return
+    if (!convIdFromUrl || !userId) return
 
-    // If already in list, select it immediately
-    if (conversations.find(c => c.id === convIdFromUrl)) {
-      setActiveConvId(convIdFromUrl)
-      return
-    }
-
-    // Not in list yet (e.g. just created by floating chat) — fetch it directly
-    if (!convsLoading && userId) {
-      supabase
-        .from('conversation')
-        .select('*')
-        .eq('id', convIdFromUrl)
-        .single()
-        .then(({ data, error }) => {
-          if (!error && data) {
-            // Add to list and select it
-            setConversations((prev) => {
-              if (prev.find(c => c.id === data.id)) return prev
-              return [data, ...prev]
-            })
-            setActiveConvId(convIdFromUrl)
-          }
+    // Fetch the conversation directly by ID — don't depend on the list being loaded
+    supabase
+      .from('conversation')
+      .select('*')
+      .eq('id', convIdFromUrl)
+      .single()
+      .then(({ data, error }) => {
+        if (error || !data) return
+        // Ensure it's in the sidebar list
+        setConversations((prev) => {
+          if (prev.find(c => c.id === data.id)) return prev
+          return [data, ...prev]
         })
-    }
-  }, [searchParams, conversations, convsLoading, userId])
+        // Select it — this triggers loadMessages
+        setActiveConvId(convIdFromUrl)
+        // Set sessionStorage so FloatingAiChat knows a chat is active
+        sessionStorage.setItem('chatspage_active_conv', convIdFromUrl)
+      })
+  // Only run when the URL param or userId first becomes available
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, userId])
 
   /* ── Real-time: new conversations ──────────────────────────────────────── */
 
@@ -196,29 +192,59 @@ export default function ChatsPage() {
 
   /* ── Load messages for active conversation ──────────────────────────────── */
 
-  const loadMessages = useCallback(async (convId) => {
-    if (!convId) return
-    setMsgsLoading(true)
+  const fetchMessages = useCallback(async (convId) => {
+    if (!convId) return []
     const { data, error } = await supabase
       .from('message')
       .select('*')
       .eq('conversation_id', convId)
       .order('created_at', { ascending: true })
-    if (!error && data) setMessages(data)
-    setMsgsLoading(false)
+    if (!error && data) return data
+    return []
   }, [])
 
+  const loadMessages = useCallback(async (convId) => {
+    if (!convId) return
+    setMsgsLoading(true)
+    const data = await fetchMessages(convId)
+    setMessages(data)
+    setMsgsLoading(false)
+  }, [fetchMessages])
+
   useEffect(() => {
-    if (activeConvId) loadMessages(activeConvId)
-    else setMessages([])
-  }, [activeConvId, loadMessages])
+    if (!activeConvId) { 
+      setMessages([])
+      sessionStorage.removeItem('chatspage_active_conv')
+      return 
+    }
+
+    // Signal to FloatingAiChat that a chat is active
+    sessionStorage.setItem('chatspage_active_conv', activeConvId)
+
+    loadMessages(activeConvId)
+
+    // Safety re-fetch after 2s — catches AI responses that arrived while we
+    // were still navigating to this page
+    const timer = setTimeout(async () => {
+      const data = await fetchMessages(activeConvId)
+      setMessages((prev) => {
+        const existingIds = new Set(prev.map((m) => m.id))
+        const newRows = data.filter((m) => !existingIds.has(m.id))
+        if (newRows.length === 0) return prev
+        return [...data].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+      })
+    }, 2000)
+
+    return () => clearTimeout(timer)
+  }, [activeConvId, loadMessages, fetchMessages])
 
   /* ── Real-time: new messages in active conversation ─────────────────────── */
 
   useEffect(() => {
     if (!activeConvId) return
+
     const channel = supabase
-      .channel(`messages-realtime-${activeConvId}`)
+      .channel(`messages-rt-${activeConvId}`)
       .on(
         'postgres_changes',
         {
@@ -229,15 +255,30 @@ export default function ChatsPage() {
         },
         (payload) => {
           setMessages((prev) => {
-            // Avoid duplicates (we also insert optimistically)
             if (prev.find((m) => m.id === payload.new.id)) return prev
             return [...prev, payload.new]
           })
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        // Once subscribed, re-fetch to catch anything inserted between page
+        // mount and the subscription becoming active
+        if (status === 'SUBSCRIBED') {
+          fetchMessages(activeConvId).then((data) => {
+            setMessages((prev) => {
+              const existingIds = new Set(prev.map((m) => m.id))
+              const newRows = data.filter((m) => !existingIds.has(m.id))
+              if (newRows.length === 0) return prev
+              return [...prev, ...newRows].sort(
+                (a, b) => new Date(a.created_at) - new Date(b.created_at)
+              )
+            })
+          })
+        }
+      })
+
     return () => { supabase.removeChannel(channel) }
-  }, [activeConvId])
+  }, [activeConvId, fetchMessages])
 
   /* ── Auto-scroll ────────────────────────────────────────────────────────── */
 
@@ -267,10 +308,14 @@ export default function ChatsPage() {
     setMessages([])
     setPendingAction(null)
     setInput('')
+    // Signal to FloatingAiChat that no chat is active
+    sessionStorage.removeItem('chatspage_active_conv')
     const convId = await createConversation()
     if (convId) {
       setTimeout(() => {
         setActiveConvId(convId)
+        // Signal to FloatingAiChat that a chat is now active
+        sessionStorage.setItem('chatspage_active_conv', convId)
         setTimeout(() => inputRef.current?.focus(), 100)
       }, 50)
     }
@@ -287,7 +332,42 @@ export default function ChatsPage() {
         setActiveConvId(null)
         setMessages([])
         setPendingAction(null)
+        // Signal to FloatingAiChat that no chat is active
+        sessionStorage.removeItem('chatspage_active_conv')
       }
+    }
+  }
+
+  /* ── Generate conversation title (first message only) ──────────────────── */
+
+  async function generateAndSaveTitle(convId, userText, freshToken) {
+    try {
+      const formData = new FormData()
+      formData.append('message',
+        `Generate a very short chat title (4-6 words max) for a conversation that starts with this message. Reply with ONLY the title, no quotes, no punctuation at the end:\n\n"${userText}"`
+      )
+      formData.append('company_id', companyId.toString())
+      formData.append('auth_token', freshToken)
+      // Use a fresh throw-away thread so it doesn't pollute the real conversation
+      const res = await fetch(`${API_BASE}/api/agent/chat`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${freshToken}`, 'X-Company-Id': String(companyId) },
+        body: formData,
+      })
+      const data = await res.json()
+      const raw = (data.response || '').trim()
+      // Strip surrounding quotes if the model added them, cap at 60 chars
+      const title = raw.replace(/^["']|["']$/g, '').trim().slice(0, 60) || userText.slice(0, 50)
+
+      // Save to Supabase
+      await supabase.from('conversation').update({ title }).eq('id', convId)
+
+      // Update sidebar immediately
+      setConversations((prev) =>
+        prev.map((c) => c.id === convId ? { ...c, title } : c)
+      )
+    } catch (err) {
+      console.error('Failed to generate title:', err)
     }
   }
 
@@ -310,6 +390,9 @@ export default function ChatsPage() {
     }
 
     const userText = trimmed || `[Uploaded: ${selectedFile?.name}]`
+
+    // Check if this is the first message (no messages yet = no title set)
+    const isFirstMessage = messages.length === 0
 
     // Optimistic insert user message into UI
     const tempId = `temp-${Date.now()}`
@@ -376,6 +459,11 @@ export default function ChatsPage() {
 
       if (data.requires_confirmation && data.proposed_action) {
         setPendingAction(data.proposed_action)
+      }
+
+      // Generate title from first message — fire-and-forget, doesn't block UI
+      if (isFirstMessage) {
+        generateAndSaveTitle(convId, userText, freshToken)
       }
     } catch (err) {
       const errText = `Sorry, an error occurred: ${err.message}`
@@ -518,6 +606,8 @@ export default function ChatsPage() {
                   onClick={() => {
                     setActiveConvId(conv.id)
                     setPendingAction(null)
+                    // Signal to FloatingAiChat that a chat is active
+                    sessionStorage.setItem('chatspage_active_conv', conv.id)
                   }}
                   onDelete={(e) => handleDeleteConversation(conv.id, e)}
                 />
@@ -743,7 +833,7 @@ function ConversationItem({ conv, isActive, onClick, onDelete }) {
       </div>
       <div className="flex-1 min-w-0">
         <p className={`text-[13px] font-semibold truncate ${isActive ? 'text-[#0F766E]' : 'text-[#111827]'}`}>
-          AI Chat
+          {conv.title || 'New Chat'}
         </p>
         <p className="text-[12px] text-[#9CA3AF] mt-0.5 flex items-center gap-1">
           <HiOutlineClock className="h-3 w-3" />

@@ -89,7 +89,7 @@ export default function MainDashboard() {
           const bs = await api(`/api/reports/balance-sheet?endDate=${dateStr}`, { token })
           const bankAcc = bs.assets.find(a => a.accountCode.startsWith('10'))
           if (bankAcc) bankBalance = bankAcc.balance
-        } catch (e) {}
+        } catch (e) { /* empty */ }
 
         let overdueCount = 0
         try {

@@ -12,7 +12,7 @@ import {
   HiOutlineArrowsPointingOut,
 } from 'react-icons/hi2'
 import { useAuth } from '../context/AuthContext'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { supabase } from '../supabase'
 
 const QUICK_PROMPTS = [
@@ -101,6 +101,8 @@ function ConfirmationCard({ action, onConfirm, onCancel, onModify }) {
 export default function FloatingAiChat() {
   const { idToken: token, me, getFreshToken, firebaseUser } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState([
@@ -115,12 +117,38 @@ export default function FloatingAiChat() {
   const [conversationId, setConversationId] = useState(() => localStorage.getItem('ai_conversation_id') || null)
   const [pendingAction, setPendingAction] = useState(null)
   const [selectedFile, setSelectedFile] = useState(null)
+  const [activeChat, setActiveChat] = useState(false) // Track if chat is active in ChatsPage
   const listRef = useRef(null)
   const fileInputRef = useRef(null)
   const inputRef = useRef(null)
 
   const companyId = me?.company?.id || me?.companyId || 1
   const userId = me?.userId  // Firebase UID string — must match ChatsPage
+
+  // Check if we're on ChatsPage with an active conversation
+  const isOnChatsPage = location.pathname === '/chats'
+  // Check both URL param and sessionStorage for active chat
+  const hasActiveChat = Boolean(searchParams.get('conversation')) || activeChat
+
+  // Poll sessionStorage to detect changes (since storage event doesn't fire in same tab)
+  useEffect(() => {
+    if (!isOnChatsPage) {
+      setActiveChat(false)
+      return
+    }
+    const interval = setInterval(() => {
+      const hasActive = Boolean(sessionStorage.getItem('chatspage_active_conv'))
+      setActiveChat(hasActive)
+    }, 300) // Check every 300ms
+    return () => clearInterval(interval)
+  }, [isOnChatsPage])
+
+  // Listen for external open events (for ChatsPage button)
+  useEffect(() => {
+    const handleOpenAiChat = () => setOpen(true)
+    window.addEventListener('openAiChat', handleOpenAiChat)
+    return () => window.removeEventListener('openAiChat', handleOpenAiChat)
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -196,6 +224,8 @@ export default function FloatingAiChat() {
     }
 
     const userText = trimmed || `[Uploaded: ${selectedFile?.name}]`
+    // First message = only the welcome bubble exists (length === 1)
+    const isFirstMessage = messages.length === 1 && messages[0]?.id === 'welcome'
     setMessages((prev) => [...prev, { id: `u-${Date.now()}`, role: 'user', text: userText }])
     setInput('')
     setIsLoading(true)
@@ -204,18 +234,6 @@ export default function FloatingAiChat() {
       // Save user message to Supabase
       if (convId) {
         await supabase.from('message').insert([{ conversation_id: convId, role: 'user', content: userText }])
-        // const { error } = await supabase
-        //     .from('message')
-        //     .insert([
-        //       {
-        //         conversation_id: convId,
-        //         role: 'assistant',
-        //         content: aiText,
-        //         created_at: new Date().toISOString()
-        //       }
-        //     ])
-        //
-        // if (error) console.error('Supabase insert error:', error)
       }
 
       const formData = new FormData()
@@ -242,6 +260,11 @@ export default function FloatingAiChat() {
         await supabase.from('message').insert([{ conversation_id: convId, role: 'assistant', content: aiText }])
       }
 
+      // Generate title after first exchange — fire-and-forget
+      if (isFirstMessage && convId) {
+        generateTitle(convId, userText, freshToken)
+      }
+
       if (data.requires_confirmation && data.proposed_action) setPendingAction(data.proposed_action)
     } catch (err) {
       const errText = `Sorry, an error occurred: ${err.message}`
@@ -252,6 +275,28 @@ export default function FloatingAiChat() {
     } finally {
       setIsLoading(false)
       setSelectedFile(null)
+    }
+  }
+
+  async function generateTitle(convId, userText, freshToken) {
+    try {
+      const formData = new FormData()
+      formData.append('message',
+        `Generate a very short chat title (4-6 words max) for a conversation that starts with this message. Reply with ONLY the title, no quotes, no punctuation at the end:\n\n"${userText}"`
+      )
+      formData.append('company_id', companyId.toString())
+      formData.append('auth_token', freshToken)
+      const res = await fetch(`${API_BASE}/api/agent/chat`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${freshToken}`, 'X-Company-Id': String(companyId) },
+        body: formData,
+      })
+      const data = await res.json()
+      const raw = (data.response || '').trim()
+      const title = raw.replace(/^["']|["']$/g, '').trim().slice(0, 60) || userText.slice(0, 50)
+      await supabase.from('conversation').update({ title }).eq('id', convId)
+    } catch (err) {
+      console.error('Failed to generate title:', err)
     }
   }
 
@@ -341,28 +386,48 @@ export default function FloatingAiChat() {
   }
 
   function handleOpenInChats() {
-    if (conversationId) {
-      navigate(`/chats?conversation=${conversationId}`)
+    // Read from localStorage directly — state update may still be in-flight if
+    // the user clicks enlarge while a message is still being generated
+    const convId = conversationId || localStorage.getItem('ai_conversation_id')
+    if (convId) {
+      // Set sessionStorage so FloatingAiChat knows a chat is active
+      sessionStorage.setItem('chatspage_active_conv', convId)
+      navigate(`/chats?conversation=${convId}`)
     } else {
       navigate('/chats')
     }
     setOpen(false)
   }
 
+  // Hide floating button only when on ChatsPage AND a chat is selected
+  const shouldHideFloatingButton = isOnChatsPage && hasActiveChat
+  
+  // Debug logging - remove after testing
+  console.log('FloatingAiChat Hide Check:', {
+    shouldHide: shouldHideFloatingButton,
+    isOnChatsPage,
+    hasActiveChat,
+    pathname: location.pathname,
+    activeChat,
+    sessionVal: sessionStorage.getItem('chatspage_active_conv')
+  })
+
   return (
     <>
-      {/* ── Floating Action Button — hidden when drawer is open ───────────── */}
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className={`fixed bottom-6 right-6 z-[80] group flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#0F766E] to-[#14B8A6] text-white shadow-xl shadow-[#0F766E]/30 transition-all duration-300 hover:scale-110 hover:shadow-2xl hover:shadow-[#0F766E]/40 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#0F766E]/30 ${
-          open ? 'scale-0 opacity-0 pointer-events-none' : 'scale-100 opacity-100'
-        }`}
-        title="Open AI assistant"
-      >
-        <HiOutlineSparkles className="h-6 w-6 transition-transform duration-300 group-hover:rotate-12" />
-        <span className="absolute inset-0 rounded-full animate-ping bg-[#0F766E]/20 pointer-events-none" style={{ animationDuration: '3s' }} />
-      </button>
+      {/* ── Floating Action Button ───────────── */}
+      {!shouldHideFloatingButton && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className={`fixed bottom-6 right-6 z-[80] group flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#0F766E] to-[#14B8A6] text-white shadow-xl shadow-[#0F766E]/30 transition-all duration-300 hover:scale-110 hover:shadow-2xl hover:shadow-[#0F766E]/40 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#0F766E]/30 ${
+            open ? 'scale-0 opacity-0 pointer-events-none' : 'scale-100 opacity-100'
+          }`}
+          title="Open AI assistant"
+        >
+          <HiOutlineSparkles className="h-6 w-6 transition-transform duration-300 group-hover:rotate-12" />
+          <span className="absolute inset-0 rounded-full animate-ping bg-[#0F766E]/20 pointer-events-none" style={{ animationDuration: '3s' }} />
+        </button>
+      )}
 
       {/* ── Chat Drawer Backdrop ────────────────────────────────────────── */}
       <div

@@ -67,15 +67,16 @@ export default function DashboardLayout({ children, activeNav = 'dashboard' }) {
 
     { key: 'bank', icon: HiOutlineCreditCard, label: 'Bank Account', onClick: () => navigate('/bank') },
 
-    { key: 'reports', icon: HiOutlineChartBar, label: 'Reports', onClick: () => navigate('/reports') },
-    {
-      key: 'analytics',
-      icon: HiOutlinePresentationChartLine,
-      label: 'Financial Forecast',
-      onClick: () => navigate('/analytics'),
-    },
-    { key: 'accounts', icon: HiOutlineBookOpen, label: 'Chart of Accounts', onClick: () => navigate('/accounts') },
-    // { key: 'chats', icon: HiOutlineChatBubbleLeftRight, label: 'Chats', onClick: () => navigate('/chats') },
+    // { key: 'reports', icon: HiOutlineChartBar, label: 'Reports', onClick: () => navigate('/reports') },
+    // {
+    //   key: 'analytics',
+    //   icon: HiOutlinePresentationChartLine,
+    //   label: 'Financial Forecast',
+    //   label: 'Financial Forecast',
+    //   onClick: () => navigate('/analytics'),
+    // },
+    // { key: 'accounts', icon: HiOutlineBookOpen, label: 'Chart of Accounts', onClick: () => navigate('/accounts') },
+    { key: 'chats', icon: HiOutlineChatBubbleLeftRight, label: 'Chats', onClick: () => navigate('/chats') },
     // { key: 'quick', icon: HiOutlineSparkles, label: 'Quick Action', onClick: () => navigate('/quick') },
   ]
 
@@ -203,20 +204,37 @@ export default function DashboardLayout({ children, activeNav = 'dashboard' }) {
         <div className="px-4 py-4 border-t border-[#E5E7EB]">
           <div className="flex flex-col gap-1">
             {[
-              { icon: HiOutlineCog6Tooth, label: 'Settings', onClick: () => {} },
-              { icon: HiOutlineQuestionMarkCircle, label: 'Support', onClick: () => {} },
-            ].map((item, index) => (
-              <div key={index} className="relative group">
+              {
+                key: 'settings',
+                icon: HiOutlineCog6Tooth,
+                label: 'Settings',
+                onClick: () => navigate('/settings'),
+              },
+              // { icon: HiOutlineQuestionMarkCircle, label: 'Support', onClick: () => {} },
+            ].map((item) => (
+              <div key={item.key} className="relative group">
                 <button
                   type="button"
                   onClick={item.onClick}
-                  className={`w-full flex items-center gap-3 rounded-lg cursor-pointer hover:bg-[#F9FAFB] transition-all ${
+                  className={`w-full flex items-center gap-3 rounded-lg cursor-pointer transition-all ${
                     sidebarCollapsed ? 'justify-center min-h-[48px]' : 'px-5 py-3'
+                  } ${
+                    item.key === activeNav
+                      ? 'bg-[#CCFBF1]'
+                      : 'hover:bg-[#F9FAFB]'
                   }`}
                 >
-                  <item.icon className="w-5 h-5 text-[#111827]" />
+                  <item.icon
+                    className={`w-5 h-5 ${item.key === activeNav ? 'text-[#0F766E]' : 'text-[#111827]'}`}
+                  />
                   {!sidebarCollapsed && (
-                    <span className="text-[15px] font-medium text-[#111827] text-left">{item.label}</span>
+                    <span
+                      className={`text-[15px] font-semibold flex-1 text-left ${
+                        item.key === activeNav ? 'text-[#0F766E]' : 'text-[#111827]'
+                      }`}
+                    >
+                      {item.label}
+                    </span>
                   )}
                 </button>
                 {sidebarCollapsed && (

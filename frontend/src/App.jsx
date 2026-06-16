@@ -25,6 +25,7 @@ import CreateEditAccount from './pages/CreateEditAccount'
 import PaymentList from './pages/PaymentList'
 import SupplierList from './pages/SupplierList'
 import CreateSupplier from './pages/CreateSupplier'
+import Settings from './pages/Settings'
 
 export default function App() {
   return (
@@ -32,6 +33,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<MainDashboard />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="/invoices" element={<InvoiceList />} />
           <Route path="/bills" element={<BillsList />} />
           <Route path="/bill/payment" element={<BillPayment />} />
