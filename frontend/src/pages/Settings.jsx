@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../context/AuthContext'
 import DashboardLayout from '../components/DashboardLayout'
@@ -26,6 +26,7 @@ import QuickCreateSupplierModal from '../components/QuickCreateSupplierModal'
 
 export default function Settings() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { me, meError, getFreshToken, refreshMe } = useAuth()
   
   // Tab states: 'account' | 'company' | 'users' | 'contacts'
@@ -126,6 +127,16 @@ export default function Settings() {
       loadSettingsData()
     }
   }, [me])
+
+  // Restore tab state when returning from an edit page
+  useEffect(() => {
+    if (location.state?.activeTab) {
+      setActiveTab(location.state.activeTab)
+    }
+    if (location.state?.contactsTab) {
+      setContactsTab(location.state.contactsTab)
+    }
+  }, [])
 
   // Save Account Profile
   async function handleSaveProfile(e) {
@@ -958,7 +969,7 @@ export default function Settings() {
                                 <div className="flex items-center justify-end gap-3.5">
                                   <button
                                     type="button"
-                                    onClick={() => navigate(`/customer/edit/${c.id}`)}
+                                    onClick={() => navigate(`/customer/edit/${c.id}`, { state: { returnTo: '/settings', activeTab: 'contacts', contactsTab: 'customers' } })}
                                     className="p-1 text-[#0F766E] hover:bg-teal-50 rounded cursor-pointer"
                                     title="Edit customer"
                                   >
@@ -1013,7 +1024,7 @@ export default function Settings() {
                                 <div className="flex items-center justify-end gap-3.5">
                                   <button
                                     type="button"
-                                    onClick={() => navigate(`/supplier/edit/${s.id}`)}
+                                    onClick={() => navigate(`/supplier/edit/${s.id}`, { state: { returnTo: '/settings', activeTab: 'contacts', contactsTab: 'suppliers' } })}
                                     className="p-1 text-[#0F766E] hover:bg-teal-50 rounded cursor-pointer"
                                     title="Edit supplier"
                                   >
