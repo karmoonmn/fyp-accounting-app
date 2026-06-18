@@ -113,8 +113,11 @@ export default function FloatingAiChat() {
     },
   ])
   const [isLoading, setIsLoading] = useState(false)
-  const [threadId, setThreadId] = useState(() => localStorage.getItem('ai_thread_id') || null)
-  const [conversationId, setConversationId] = useState(() => localStorage.getItem('ai_conversation_id') || null)
+  const [conversationId, setConversationId] = useState(() => {
+    // Clean up old separate threadId key from localStorage (no longer used)
+    localStorage.removeItem('ai_thread_id')
+    return localStorage.getItem('ai_conversation_id') || null
+  })
   const [pendingAction, setPendingAction] = useState(null)
   const [selectedFile, setSelectedFile] = useState(null)
   const [activeChat, setActiveChat] = useState(false) // Track if chat is active in ChatsPage
@@ -240,7 +243,8 @@ export default function FloatingAiChat() {
       formData.append('message', userText)
       formData.append('company_id', companyId.toString())
       formData.append('auth_token', freshToken)
-      if (threadId) formData.append('thread_id', threadId)
+      // conversation_id IS the agent thread_id — satisfies conversation_state FK
+      if (convId) formData.append('thread_id', convId)
       if (selectedFile) formData.append('file', selectedFile)
       const res = await fetch(`${API_BASE}/api/agent/chat`, {
         method: 'POST',
@@ -248,10 +252,7 @@ export default function FloatingAiChat() {
         body: formData,
       })
       const data = await res.json()
-      if (data.thread_id) {
-        setThreadId(data.thread_id)
-        localStorage.setItem('ai_thread_id', data.thread_id)
-      }
+      // No need to store data.thread_id separately — it echoes back convId
       const aiText = data.response || 'I processed your request.'
       setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', text: aiText }])
 
@@ -301,12 +302,12 @@ export default function FloatingAiChat() {
   }
 
   async function handleConfirm() {
-    if (!threadId) return
+    if (!conversationId) return
     const freshToken = await getFreshToken()
     setIsLoading(true)
     setPendingAction(null)
     try {
-      const res = await fetch(`${API_BASE}/api/agent/confirm/${threadId}`, {
+      const res = await fetch(`${API_BASE}/api/agent/confirm/${conversationId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${freshToken}` },
         body: JSON.stringify({ action: 'confirm' }),
@@ -327,12 +328,12 @@ export default function FloatingAiChat() {
   }
 
   async function handleCancel() {
-    if (!threadId) return
+    if (!conversationId) return
     const freshToken = await getFreshToken()
     setIsLoading(true)
     setPendingAction(null)
     try {
-      const res = await fetch(`${API_BASE}/api/agent/cancel/${threadId}`, {
+      const res = await fetch(`${API_BASE}/api/agent/cancel/${conversationId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${freshToken}` },
       })
@@ -377,9 +378,7 @@ export default function FloatingAiChat() {
       role: 'assistant',
       text: "Hi! I'm your AI Accounting Assistant. I can help create invoices, manage expenses, analyze finances, and forecast trends.\n\nHow can I help you today?",
     }])
-    setThreadId(null)
     setConversationId(null)
-    localStorage.removeItem('ai_thread_id')
     localStorage.removeItem('ai_conversation_id')
     setPendingAction(null)
     setInput('')

@@ -28,3 +28,6 @@ target/
 *.war
 .gradle/
 build/
+
+# AI
+.kiro

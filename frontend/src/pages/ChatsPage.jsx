@@ -114,8 +114,7 @@ export default function ChatsPage() {
   const [pendingAction, setPendingAction] = useState(null)
   const [selectedFile, setSelectedFile] = useState(null)
 
-  // Thread mapping: conversationId → agent threadId
-  const [threadMap, setThreadMap] = useState({})
+  // No separate threadMap needed — conversation_id IS the agent thread_id
 
   const listRef = useRef(null)
   const inputRef = useRef(null)
@@ -415,13 +414,14 @@ export default function ChatsPage() {
         )
       }
 
-      // Call AI agent
+      // Call AI agent — always pass convId as thread_id so the agent
+      // uses conversation_id as its LangGraph thread key.
+      // This also satisfies the FK on conversation_state.
       const formData = new FormData()
       formData.append('message', userText)
       formData.append('company_id', companyId.toString())
       formData.append('auth_token', freshToken)
-      const agentThreadId = threadMap[convId]
-      if (agentThreadId) formData.append('thread_id', agentThreadId)
+      formData.append('thread_id', convId)
       if (selectedFile) formData.append('file', selectedFile)
 
       const res = await fetch(`${API_BASE}/api/agent/chat`, {
@@ -431,11 +431,7 @@ export default function ChatsPage() {
       })
       const data = await res.json()
 
-      // Save agent thread_id mapping
-      if (data.thread_id) {
-        setThreadMap((prev) => ({ ...prev, [convId]: data.thread_id }))
-      }
-
+      // thread_id echoed back = convId (no separate mapping needed)
       const aiText = data.response || 'I processed your request.'
 
       // Persist assistant message to Supabase and get back the row
@@ -480,7 +476,7 @@ export default function ChatsPage() {
   /* ── Confirm / Cancel agent actions ────────────────────────────────────── */
 
   async function handleConfirm() {
-    const agentThreadId = threadMap[activeConvId]
+    const agentThreadId = activeConvId
     if (!agentThreadId) return
     const freshToken = await getFreshToken()
     setIsSending(true)
@@ -510,7 +506,7 @@ export default function ChatsPage() {
   }
 
   async function handleCancel() {
-    const agentThreadId = threadMap[activeConvId]
+    const agentThreadId = activeConvId
     if (!agentThreadId) return
     const freshToken = await getFreshToken()
     setIsSending(true)

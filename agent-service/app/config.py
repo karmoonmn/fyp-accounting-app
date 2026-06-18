@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     supabase_url: Optional[str] = None
     supabase_service_key: Optional[str] = None
 
+    # ── Supabase Postgres direct connection (for conversation_state) ──────────
+    # Format: postgresql://user:password@host:port/dbname
+    database_url: Optional[str] = None
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 
