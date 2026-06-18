@@ -506,6 +506,10 @@ function RegisterPage({ onSwitch }) {
       return
     }
 
+    if (!companyName.trim()) {
+      setError('Company name must not be blank')
+      return
+    }
     if (password !== confirmPassword) {
       setError('Passwords do not match')
       return
@@ -520,6 +524,7 @@ function RegisterPage({ onSwitch }) {
         token,
         body: {
           companyName,
+          companyEmail: companyEmail || undefined,
           industry: 'Other',
           country: location || 'Other',
           adminName,
@@ -547,7 +552,7 @@ function RegisterPage({ onSwitch }) {
             <SectionLabel>Admin Account</SectionLabel>
             <InputField label="Admin Name" type="text" placeholder="Full name" icon={IconUser} value={adminName} onChange={(e) => setAdminName(e.target.value)} />
             <InputField label="Admin Email" type="email" placeholder="admin@company.com" icon={IconMail} value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} />
-            <InputField label="Password" type="password" placeholder="Min. 8 characters" icon={IconLock} value={password} onChange={(e) => setPassword(e.target.value)} />
+            <InputField label="Password" type="password" placeholder="Min. 6 characters" icon={IconLock} value={password} onChange={(e) => setPassword(e.target.value)} />
             <InputField label="Confirm Password" type="password" placeholder="Re-enter password" icon={IconLock} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
           </div>
 

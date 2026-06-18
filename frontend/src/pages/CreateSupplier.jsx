@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../context/AuthContext'
 import DashboardLayout from '../components/DashboardLayout'
@@ -8,8 +8,10 @@ import { HiOutlineXMark } from 'react-icons/hi2'
 export default function CreateSupplier() {
   const { me, meError, getFreshToken } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const { id } = useParams()
   const isEdit = !!id
+  const returnTo = location.state?.returnTo || '/suppliers'
 
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -64,7 +66,7 @@ export default function CreateSupplier() {
       const url = isEdit ? `/supplier/${id}` : '/supplier'
       const method = isEdit ? 'PUT' : 'POST'
       await api(url, { method, token, body })
-      navigate('/suppliers')
+      navigate(returnTo, { state: location.state })
     } catch (err) {
       setError(err instanceof Error ? err.message : `Could not ${isEdit ? 'update' : 'create'} supplier`)
     } finally {
@@ -73,7 +75,7 @@ export default function CreateSupplier() {
   }
 
   function closeEditor() {
-    navigate('/suppliers')
+    navigate(returnTo, { state: location.state })
   }
 
   return (
