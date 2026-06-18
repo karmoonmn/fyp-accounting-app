@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import { Link, useNavigate, useParams, useLocation } from 'react-router-dom'
-import { HiOutlinePlus, HiOutlineTrash, HiOutlineXMark, HiOutlineChevronDown } from 'react-icons/hi2'
+import { HiOutlinePlus, HiOutlineTrash, HiOutlineXMark } from 'react-icons/hi2'
 import CustomSelect from '../components/CustomSelect'
 import FormSkeleton from '../components/FormSkeleton'
 import QuickCreateCustomerModal from '../components/QuickCreateCustomerModal'
@@ -54,7 +54,6 @@ export default function CreateInvoice() {
   const [balance, setBalance] = useState(0)
   const [paymentsAllocations, setPaymentsAllocations] = useState([])
   const [showCustomerModal, setShowCustomerModal] = useState(false)
-  const [showPaymentMenu, setShowPaymentMenu] = useState(false)
 
   useEffect(() => {
     if (!me || meError) return
@@ -198,7 +197,7 @@ export default function CreateInvoice() {
         dueDate: dueDate || undefined,
         lines: parsedLines,
       }
-      if (customerId.trim() !== '') {
+      if (String(customerId).trim() !== '') {
         const cid = Number.parseInt(customerId, 10)
         if (Number.isNaN(cid)) throw new Error('Customer ID must be a number')
         body.customerId = cid
@@ -221,6 +220,63 @@ export default function CreateInvoice() {
 
   function closeEditor() {
     navigate('/invoices')
+  }
+
+  async function handleSaveAndReceivePayment() {
+    setError('')
+    if (!me || meError) { setError('Sign in and complete registration before creating invoices.'); return }
+    setBusy(true)
+    try {
+      const validLines = lines.filter(row => {
+        const unitPrice = Number.parseFloat(row.unitPrice)
+        return Number.isFinite(unitPrice) && unitPrice !== 0
+      })
+      const parsedLines = validLines.map((row, i) => {
+        const quantity = Number.parseFloat(row.quantity)
+        const unitPrice = Number.parseFloat(row.unitPrice)
+        if (!Number.isFinite(quantity) || !Number.isFinite(unitPrice)) throw new Error(`Line ${row.lineNum || i + 1}: invalid quantity or unit price`)
+        return { lineNum: i + 1, description: row.description || `Line ${i + 1}`, quantity, unitPrice }
+      })
+      if (parsedLines.length === 0) throw new Error('Cannot create invoice without any valid line items (price must not be 0)')
+      const totalAmount = parsedLines.reduce((sum, row) => sum + (row.quantity * row.unitPrice), 0)
+      if (totalAmount === 0) throw new Error('Cannot create an invoice with a total amount of 0')
+      const token = await getFreshToken()
+      if (!token) throw new Error('Not signed in')
+      const body = {
+        docNumber: docNumber.trim(),
+        txnDate,
+        shipAddr: shipAddr.trim() || undefined,
+        shipDate: shipDate || undefined,
+        dueDate: dueDate || undefined,
+        lines: parsedLines,
+      }
+      if (String(customerId).trim() !== '') {
+        const cid = Number.parseInt(customerId, 10)
+        if (Number.isNaN(cid)) throw new Error('Customer ID must be a number')
+        body.customerId = cid
+      }
+      if (!body.docNumber) throw new Error('Document number is required')
+      const url = isEdit ? `/invoice/${id}` : '/invoice'
+      const method = isEdit ? 'PUT' : 'POST'
+      const saved = await api(url, { method, token, body })
+      // Immediately record full payment for this invoice
+      const refNo = 'RCV-' + Math.floor(10000 + Math.random() * 90000)
+      await api('/invoice/payment', {
+        method: 'POST',
+        token,
+        body: {
+          refNo,
+          paymentDate: new Date().toISOString().slice(0, 10),
+          depositTo: 'Bank',
+          payments: [{ invoiceId: saved.id, amount: Number.parseFloat(saved.totalAmt) || 0 }],
+        },
+      })
+      navigate('/invoices')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save invoice')
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -273,8 +329,8 @@ export default function CreateInvoice() {
         ) : (
           <form id="create-invoice-form" onSubmit={handleSubmit} className="space-y-6">
               <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
-                <div className="grid grid-cols-3 gap-4">
-                  <label className="text-[12px] font-bold text-[#6B7280]">
+                <div className="flex items-start justify-between gap-4">
+                  <label className="w-full max-w-[320px] text-[12px] font-bold text-[#6B7280]">
                     Customer
                     <CustomSelect
                       value={customerId}
@@ -295,7 +351,7 @@ export default function CreateInvoice() {
                       onCreateNew={() => setShowCustomerModal(true)}
                     />
                   </label>
-                  <label className="text-[12px] font-bold text-[#6B7280]">
+                  {/* <label className="text-[12px] font-bold text-[#6B7280]">
                     Customer email
                     <input
                       type="text"
@@ -311,14 +367,12 @@ export default function CreateInvoice() {
                       />
                       Send later
                     </span>
-                  </label>
-                  <div className="flex items-start justify-end">
-                    <div className="text-right">
-                      <p className="text-[11px] font-bold uppercase tracking-wide text-[#6B7280]">Balance due</p>
-                      <p className="mt-1 text-[28px] font-bold tabular-nums text-[#111827]">
-                        ${displayBalance.toFixed(2)}
-                      </p>
-                    </div>
+                  </label> */}
+                  <div className="text-right">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#6B7280]">Balance due</p>
+                    <p className="mt-1 text-[28px] font-bold tabular-nums text-[#111827]">
+                      ${displayBalance.toFixed(2)}
+                    </p>
                   </div>
                 </div>
 
@@ -548,33 +602,16 @@ export default function CreateInvoice() {
             Cancel
           </button>
           <div className="flex items-center gap-3">
-            <div className="relative">
+            {!(isEdit && balance <= 0) && (
               <button
                 type="button"
-                onClick={() => setShowPaymentMenu(!showPaymentMenu)}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#374151] px-5 text-[14px] font-bold text-white hover:bg-[#4B5563]"
-                title="Record a payment"
+                onClick={handleSaveAndReceivePayment}
+                disabled={busy}
+                className="inline-flex h-10 items-center justify-center rounded-xl bg-[#374151] px-5 text-[14px] font-bold text-white hover:bg-[#4B5563] disabled:opacity-60"
               >
-                Record payment
-                <HiOutlineChevronDown className="h-4 w-4" />
+                {busy ? 'Saving…' : 'Save & Receive Payment'}
               </button>
-              {showPaymentMenu && (
-                <div className="absolute bottom-full right-0 mb-2 w-56 overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-lg z-50">
-                  <button
-                    onClick={() => navigate('/invoice/payment')}
-                    className="w-full px-4 py-3 text-left text-[13px] font-semibold text-[#111827] hover:bg-[#F9FAFB]"
-                  >
-                    Receive payment (Invoice)
-                  </button>
-                  <button
-                    onClick={() => navigate('/bill/payment')}
-                    className="w-full px-4 py-3 text-left text-[13px] font-semibold text-[#111827] hover:bg-[#F9FAFB]"
-                  >
-                    Make payment (Bill)
-                  </button>
-                </div>
-              )}
-            </div>
+            )}
             {/*<button*/}
             {/*  type="button"*/}
             {/*  className="inline-flex h-10 items-center justify-center rounded-xl bg-[#374151] px-5 text-[14px] font-bold text-white hover:bg-[#4B5563]"*/}

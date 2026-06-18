@@ -963,7 +963,7 @@ export default function Settings() {
                             <tr key={c.id} className="hover:bg-gray-50/50">
                               <td className="py-4 pr-4 align-middle font-semibold text-[#111827]">{c.name || '—'}</td>
                               <td className="py-4 pr-4 align-middle text-[#4B5563]">{c.email || '—'}</td>
-                              <td className="py-4 pr-4 align-middle text-[#4B5563]">{c.phone || '—'}</td>
+                              <td className="py-4 pr-4 align-middle text-[#4B5563]">{c.phoneNum || '—'}</td>
                               <td className="py-4 pr-4 align-middle text-[#6B7280] max-w-[240px] truncate">{c.addr || '—'}</td>
                               <td className="py-4 pr-4 align-middle text-right">
                                 <div className="flex items-center justify-end gap-3.5">
@@ -1058,12 +1058,16 @@ export default function Settings() {
       <QuickCreateCustomerModal 
         isOpen={isCustomerModalOpen} 
         onClose={() => setIsCustomerModalOpen(false)}
-        onSuccess={() => loadSettingsData()}
+        onSuccess={(newCustomer) => {
+          setCustomers(prev => [...prev, newCustomer])
+        }}
       />
       <QuickCreateSupplierModal 
         isOpen={isSupplierModalOpen} 
         onClose={() => setIsSupplierModalOpen(false)}
-        onSuccess={() => loadSettingsData()}
+        onSuccess={(newSupplier) => {
+          setSuppliers(prev => [...prev, newSupplier])
+        }}
       />
     </DashboardLayout>
   )

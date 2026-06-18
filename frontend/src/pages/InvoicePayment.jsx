@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { HiOutlineChevronDown, HiOutlineXMark } from 'react-icons/hi2'
+import React, { useState, useEffect, useRef } from 'react'
+import { useNavigate, useParams, useLocation } from 'react-router-dom'
+import { HiOutlineChevronDown, HiOutlineXMark, HiOutlineFunnel } from 'react-icons/hi2'
 import { api } from '../api'
 import { useAuth } from '../context/AuthContext'
 
@@ -15,18 +15,21 @@ function formatMoney(n) {
 export default function InvoicePayment() {
   const navigate = useNavigate()
   const { id } = useParams()
+  const location = useLocation()
   const isEdit = !!id
   const { me, meError, getFreshToken } = useAuth()
+  const filterRef = useRef(null)
   
-  const [customer, setCustomer] = useState('')
-  const [email, setEmail] = useState('')
-  const [sendLater, setSendLater] = useState(false)
   const [depositTo, setDepositTo] = useState('Bank')
   const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [refNo, setRefNo] = useState(() => {
     return 'RCV-' + Math.floor(10000 + Math.random() * 90000)
   })
   const [filter, setFilter] = useState('')
+  const [filterAmountMin, setFilterAmountMin] = useState('')
+  const [filterAmountMax, setFilterAmountMax] = useState('')
+  const [filterDueDateFrom, setFilterDueDateFrom] = useState('')
+  const [filterDueDateTo, setFilterDueDateTo] = useState('')
   const [invoices, setInvoices] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -34,6 +37,7 @@ export default function InvoicePayment() {
 
   const [selected, setSelected] = useState(() => new Set())
   const [payments, setPayments] = useState(() => ({}))
+  const [showFilters, setShowFilters] = useState(false)
 
   useEffect(() => {
     if (!me || meError) return
@@ -91,6 +95,37 @@ export default function InvoicePayment() {
     }
   }, [me, meError, getFreshToken])
 
+  // Pre-select invoice(s) passed via router state
+  useEffect(() => {
+    const preIds = location.state?.invoiceIds
+    const preId = location.state?.invoiceId
+    const ids = preIds ? preIds.map(String) : (preId ? [preId.toString()] : [])
+    if (ids.length === 0 || invoices.length === 0) return
+    const newSelected = new Set()
+    const newPayments = {}
+    ids.forEach(idStr => {
+      const inv = invoices.find(i => i.id.toString() === idStr)
+      if (!inv) return
+      newSelected.add(idStr)
+      newPayments[idStr] = (Number.parseFloat(inv.balance) || 0).toString()
+    })
+    if (newSelected.size > 0) {
+      setSelected(newSelected)
+      setPayments(newPayments)
+    }
+  }, [invoices])
+
+  // Click-outside to close filter dropdown
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (filterRef.current && !filterRef.current.contains(e.target)) {
+        setShowFilters(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   const amountReceived = invoices.reduce((sum, inv) => {
     const idStr = inv.id.toString()
     if (!selected.has(idStr)) return sum
@@ -99,7 +134,7 @@ export default function InvoicePayment() {
   }, 0)
 
   function close() {
-    navigate(-1)
+    navigate(isEdit ? '/payments' : -1)
   }
 
   function toggle(id) {
@@ -163,7 +198,7 @@ export default function InvoicePayment() {
         body,
       })
 
-      navigate(-1)
+      navigate(isEdit ? '/payments' : -1)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save payment')
     } finally {
@@ -183,8 +218,20 @@ export default function InvoicePayment() {
     customerName: inv.customer?.name || ''
   })).filter((inv) => {
     const q = filter.trim().toLowerCase()
-    if (!q) return true
-    return inv.no.toLowerCase().includes(q) || inv.customerName.toLowerCase().includes(q)
+    if (q && !inv.no.toLowerCase().includes(q) && !inv.customerName.toLowerCase().includes(q)) {
+      return false
+    }
+    if (filterAmountMin.trim()) {
+      const min = parseFloat(filterAmountMin)
+      if (!isNaN(min) && inv.open < min) return false
+    }
+    if (filterAmountMax.trim()) {
+      const max = parseFloat(filterAmountMax)
+      if (!isNaN(max) && inv.open > max) return false
+    }
+    if (filterDueDateFrom && inv.dueDate !== '—' && inv.dueDate < filterDueDateFrom) return false
+    if (filterDueDateTo && inv.dueDate !== '—' && inv.dueDate > filterDueDateTo) return false
+    return true
   })
 
   return (
@@ -213,33 +260,7 @@ export default function InvoicePayment() {
         ) : null}
         <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
           <div className="grid grid-cols-4 gap-4">
-            <label className="text-[12px] font-bold text-[#6B7280]">
-              Customer
-              <input
-                value={customer}
-                onChange={(e) => setCustomer(e.target.value)}
-                className="mt-1 h-10 w-full rounded-xl border border-[#E5E7EB] bg-white px-3 text-[13px] font-medium text-[#111827] focus:border-[#0F766E] focus:outline-none"
-              />
-            </label>
-            <label className="text-[12px] font-bold text-[#6B7280]">
-              Email
-              <input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email (Separate emails with a comma)"
-                className="mt-1 h-10 w-full rounded-xl border border-[#E5E7EB] bg-white px-3 text-[13px] font-medium text-[#111827] placeholder-[#9CA3AF] focus:border-[#0F766E] focus:outline-none"
-              />
-              <span className="mt-2 inline-flex items-center gap-2 text-[12px] font-semibold text-[#64748B]">
-                <input
-                  type="checkbox"
-                  checked={sendLater}
-                  onChange={(e) => setSendLater(e.target.checked)}
-                  className={checkboxClass}
-                />
-                Send later
-              </span>
-            </label>
-            <label className="text-[12px] font-bold text-[#6B7280]">
+            <label className="col-span-1 text-[12px] font-bold text-[#6B7280]">
               Deposit to
               <div className="relative mt-1">
                 <select
@@ -254,6 +275,7 @@ export default function InvoicePayment() {
                 <HiOutlineChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6B7280]" />
               </div>
             </label>
+            <div className="col-span-2" />
             <div className="flex items-start justify-end">
               <div className="text-right">
                 <p className="text-[11px] font-bold uppercase tracking-wide text-[#6B7280]">Amount received</p>
@@ -262,9 +284,7 @@ export default function InvoicePayment() {
                 </p>
               </div>
             </div>
-          </div>
 
-          <div className="mt-4 grid grid-cols-4 gap-4">
             <label className="col-span-1 text-[12px] font-bold text-[#6B7280]">
               Payment date
               <input
@@ -293,21 +313,108 @@ export default function InvoicePayment() {
           </div>
 
           <div className="mt-3 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <input
                 type="search"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                placeholder="Find Invoice No."
-                className="h-10 w-[240px] rounded-xl border border-[#E5E7EB] bg-white px-3 text-[13px] font-medium text-[#111827] placeholder-[#9CA3AF] focus:border-[#0F766E] focus:outline-none"
+                placeholder="Find Invoice No. / Customer"
+                className="h-10 w-[220px] rounded-xl border border-[#E5E7EB] bg-white px-3 text-[13px] font-medium text-[#111827] placeholder-[#9CA3AF] focus:border-[#0F766E] focus:outline-none"
               />
-              <button
-                type="button"
-                className="inline-flex h-10 items-center justify-center rounded-xl border border-[#0F766E] bg-white px-4 text-[13px] font-bold text-[#0F766E] hover:bg-[#CCFBF1]"
-              >
-                Filter &gt;
-              </button>
-              <span className="text-[13px] font-semibold text-[#64748B]">All</span>
+              <div className="relative" ref={filterRef}>
+                <button
+                  type="button"
+                  onClick={() => setShowFilters(v => !v)}
+                  className={`inline-flex h-10 items-center gap-2 rounded-xl border px-4 text-[13px] font-semibold transition-colors ${
+                    showFilters || filterAmountMin || filterAmountMax || filterDueDateFrom || filterDueDateTo
+                      ? 'border-[#0F766E] bg-[#F0FDFA] text-[#0F766E]'
+                      : 'border-[#E5E7EB] bg-white text-[#374151] hover:border-[#0F766E] hover:text-[#0F766E]'
+                  }`}
+                >
+                  <HiOutlineFunnel className="h-4 w-4" />
+                  Filters
+                  {(filterAmountMin || filterAmountMax || filterDueDateFrom || filterDueDateTo) && (
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#0F766E] text-[10px] font-bold text-white">
+                      {[filterAmountMin, filterAmountMax, filterDueDateFrom, filterDueDateTo].filter(Boolean).length}
+                    </span>
+                  )}
+                  <HiOutlineChevronDown className={`h-4 w-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showFilters && (
+                  <div className="absolute left-0 top-full z-20 mt-2 w-[520px] rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-lg">
+                    <div className="space-y-4">
+                      <div>
+                        <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-[#6B7280]">Open Balance Range</p>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            value={filterAmountMin}
+                            onChange={(e) => setFilterAmountMin(e.target.value)}
+                            placeholder="Min"
+                            className="h-10 w-full rounded-xl border border-[#E5E7EB] bg-white px-3 text-[13px] font-medium text-[#111827] placeholder-[#9CA3AF] focus:border-[#0F766E] focus:outline-none"
+                          />
+                          <span className="shrink-0 text-[13px] font-semibold text-[#9CA3AF]">–</span>
+                          <input
+                            type="number"
+                            value={filterAmountMax}
+                            onChange={(e) => setFilterAmountMax(e.target.value)}
+                            placeholder="Max"
+                            className="h-10 w-full rounded-xl border border-[#E5E7EB] bg-white px-3 text-[13px] font-medium text-[#111827] placeholder-[#9CA3AF] focus:border-[#0F766E] focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-[#6B7280]">Due Date Range</p>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="date"
+                            value={filterDueDateFrom}
+                            onChange={(e) => setFilterDueDateFrom(e.target.value)}
+                            className="h-10 w-full rounded-xl border border-[#E5E7EB] bg-white px-3 text-[13px] font-medium text-[#111827] focus:border-[#0F766E] focus:outline-none"
+                          />
+                          <span className="shrink-0 text-[13px] font-semibold text-[#9CA3AF]">–</span>
+                          <input
+                            type="date"
+                            value={filterDueDateTo}
+                            onChange={(e) => setFilterDueDateTo(e.target.value)}
+                            className="h-10 w-full rounded-xl border border-[#E5E7EB] bg-white px-3 text-[13px] font-medium text-[#111827] focus:border-[#0F766E] focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                      {(filterAmountMin || filterAmountMax || filterDueDateFrom || filterDueDateTo) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFilterAmountMin('')
+                            setFilterAmountMax('')
+                            setFilterDueDateFrom('')
+                            setFilterDueDateTo('')
+                          }}
+                          className="text-[12px] font-bold text-[#B91C1C] hover:underline"
+                        >
+                          Clear range filters
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+              {(filter || filterAmountMin || filterAmountMax || filterDueDateFrom || filterDueDateTo) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilter('')
+                    setFilterAmountMin('')
+                    setFilterAmountMax('')
+                    setFilterDueDateFrom('')
+                    setFilterDueDateTo('')
+                  }}
+                  className="text-xs font-bold text-[#B91C1C] hover:underline"
+                >
+                  Clear All
+                </button>
+              )}
             </div>
             <div className="w-[240px]">
               <input
@@ -326,6 +433,7 @@ export default function InvoicePayment() {
                     <span className="sr-only">Select</span>
                   </th>
                   <th className="px-4 py-3">Description</th>
+                  <th className="px-4 py-3">Customer</th>
                   <th className="px-4 py-3">Due date</th>
                   <th className="px-4 py-3 text-right">Original amount</th>
                   <th className="px-4 py-3 text-right">Open balance</th>
@@ -335,13 +443,13 @@ export default function InvoicePayment() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-[13px] font-semibold text-[#64748B]">
+                    <td colSpan={7} className="py-8 text-center text-[13px] font-semibold text-[#64748B]">
                       Loading outstanding invoices...
                     </td>
                   </tr>
                 ) : visible.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-[13px] font-semibold text-[#64748B]">
+                    <td colSpan={7} className="py-8 text-center text-[13px] font-semibold text-[#64748B]">
                       No outstanding invoices found.
                     </td>
                   </tr>
@@ -350,7 +458,7 @@ export default function InvoicePayment() {
                     <tr key={inv.id} className={i % 2 === 1 ? 'bg-[#F9FAFB]/70' : 'bg-white'}>
                       <td className="border-b border-[#F3F4F6] px-4 py-3">
                         <input
-                          type="checkbox"
+                           type="checkbox"
                           checked={selected.has(inv.id)}
                           onChange={() => toggle(inv.id)}
                           className={checkboxClass}
@@ -358,6 +466,9 @@ export default function InvoicePayment() {
                       </td>
                       <td className="border-b border-[#F3F4F6] px-4 py-3 font-semibold text-[#0F766E]">
                         {inv.no}
+                      </td>
+                      <td className="border-b border-[#F3F4F6] px-4 py-3 text-[#374151]">
+                        {inv.customerName || '—'}
                       </td>
                       <td className="border-b border-[#F3F4F6] px-4 py-3 text-[#111827]">{inv.dueDate}</td>
                       <td className="border-b border-[#F3F4F6] px-4 py-3 text-right tabular-nums text-[#111827]">

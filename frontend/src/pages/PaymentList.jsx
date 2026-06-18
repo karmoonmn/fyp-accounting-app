@@ -83,6 +83,20 @@ export default function PaymentList() {
     }
   }
 
+  async function handleBatchDelete() {
+    if (selected.size === 0) return
+    if (!window.confirm(`Delete ${selected.size} selected payment${selected.size > 1 ? 's' : ''}? This will revert the balances on all affected invoices or bills.`)) return
+    try {
+      const token = await getFreshToken()
+      if (!token) return
+      await Promise.all(Array.from(selected).map(id => api(`/payment/${id}`, { method: 'DELETE', token })))
+      setPayments(prev => prev.filter(p => !selected.has(p.id.toString())))
+      setSelected(new Set())
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not delete payments')
+    }
+  }
+
   const rows = payments.map((p) => ({
     id: p.id.toString(),
     date: p.txnDate || '—',
@@ -373,22 +387,28 @@ export default function PaymentList() {
             </table>
           </div>
 
-          <div className="flex items-center justify-end gap-4 border-t border-[#E5E7EB] px-2 py-3 text-[13px] font-semibold text-[#0F766E]">
-            <button type="button" className="hover:underline disabled:opacity-40" disabled>
-              First
-            </button>
-            <button type="button" className="hover:underline disabled:opacity-40" disabled>
-              Previous
-            </button>
-            <span className="text-[#64748B]">
-              {pageStart}-{pageEnd} of {totalCount}
-            </span>
-            <button type="button" className="hover:underline disabled:opacity-40" disabled>
-              Next
-            </button>
-            <button type="button" className="hover:underline disabled:opacity-40" disabled>
-              Last
-            </button>
+          <div className="flex items-center justify-between gap-4 border-t border-[#E5E7EB] px-2 py-3 text-[13px]">
+            <div>
+              {selected.size > 0 && (
+                <div className="flex items-center gap-3">
+                  <span className="font-semibold text-[#0F766E]">{selected.size} selected</span>
+                  <button
+                    type="button"
+                    onClick={handleBatchDelete}
+                    className="rounded-lg bg-red-50 px-3 py-1.5 text-[12px] font-semibold text-red-600 hover:bg-red-100"
+                  >
+                    Delete
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-4 font-semibold text-[#0F766E]">
+              <button type="button" className="hover:underline disabled:opacity-40" disabled>First</button>
+              <button type="button" className="hover:underline disabled:opacity-40" disabled>Previous</button>
+              <span className="text-[#64748B]">{pageStart}-{pageEnd} of {totalCount}</span>
+              <button type="button" className="hover:underline disabled:opacity-40" disabled>Next</button>
+              <button type="button" className="hover:underline disabled:opacity-40" disabled>Last</button>
+            </div>
           </div>
         </div>
       </div>

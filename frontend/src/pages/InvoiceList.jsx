@@ -48,30 +48,30 @@ const SORT_OPTIONS = [
 function StatusBadge({ status }) {
   if (status.kind === 'overdue') {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-[12px] font-semibold text-red-700 ring-1 ring-red-100">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-[12px] font-semibold text-red-700 ring-1 ring-red-100">
         <HiOutlineExclamationCircle className="h-3.5 w-3.5" />
-        {status.label}
+          {status.label}
       </span>
     )
   }
   if (status.kind === 'closed') {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-[12px] font-semibold text-emerald-700 ring-1 ring-emerald-100">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-[12px] font-semibold text-emerald-700 ring-1 ring-emerald-100">
         <HiOutlineCheckCircle className="h-3.5 w-3.5" />
-        {status.label}
+          {status.label}
       </span>
     )
   }
   if (status.kind === 'due') {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-[12px] font-semibold text-amber-700 ring-1 ring-amber-100">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-[12px] font-semibold text-amber-700 ring-1 ring-amber-100">
         <HiOutlineClock className="h-3.5 w-3.5" />
-        {status.label}
+          {status.label}
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-[12px] font-semibold text-blue-700 ring-1 ring-blue-100">
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-[12px] font-semibold text-blue-700 ring-1 ring-blue-100">
       {status.label}
     </span>
   )
@@ -130,6 +130,43 @@ export default function InvoiceList() {
     }
   }
 
+  async function handleBatchDelete() {
+    if (selected.size === 0) return
+    if (!window.confirm(`Delete ${selected.size} selected invoice${selected.size > 1 ? 's' : ''}?`)) return
+    try {
+      const token = await getFreshToken()
+      if (!token) return
+      await Promise.all(Array.from(selected).map(id => api(`/invoice/${id}`, { method: 'DELETE', token })))
+      setInvoices(prev => prev.filter(inv => !selected.has(inv.id.toString())))
+      setSelected(new Set())
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not delete invoices')
+    }
+  }
+
+  async function handleReceivePayment(invoiceId, balance) {
+    if (!window.confirm(`Receive full payment of $${Number(balance).toFixed(2)} for this invoice?`)) return
+    try {
+      const token = await getFreshToken()
+      if (!token) return
+      const refNo = 'RCV-' + Math.floor(10000 + Math.random() * 90000)
+      await api('/invoice/payment', {
+        method: 'POST',
+        token,
+        body: {
+          refNo,
+          paymentDate: new Date().toISOString().slice(0, 10),
+          depositTo: 'Bank',
+          payments: [{ invoiceId: Number(invoiceId), amount: Number(balance) }],
+        },
+      })
+      const data = await api('/invoice', { token })
+      setInvoices(data || [])
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not record payment')
+    }
+  }
+
   function getInvoiceStatus(inv) {
     const balance = Number.parseFloat(inv.balance) || 0
     const total = Number.parseFloat(inv.totalAmt) || 0
@@ -165,18 +202,16 @@ export default function InvoiceList() {
   const filteredAndSorted = useMemo(() => {
     let result = [...rows]
 
-    // Search filter
     const q = searchText.trim().toLowerCase()
     if (q) {
       result = result.filter((row) =>
-        row.customer.toLowerCase().includes(q) ||
-        row.no.toLowerCase().includes(q) ||
-        row.memo.toLowerCase().includes(q) ||
-        row.amount.toString().includes(q)
+          row.customer.toLowerCase().includes(q) ||
+          row.no.toLowerCase().includes(q) ||
+          row.memo.toLowerCase().includes(q) ||
+          row.amount.toString().includes(q)
       )
     }
 
-    // Status filter
     if (statusFilter !== 'all') {
       const statusMap = {
         open: 'open',
@@ -187,7 +222,6 @@ export default function InvoiceList() {
       result = result.filter((row) => row.status.kind === statusMap[statusFilter])
     }
 
-    // Date range filter
     if (dateFrom) {
       result = result.filter((row) => row.date >= dateFrom)
     }
@@ -195,7 +229,6 @@ export default function InvoiceList() {
       result = result.filter((row) => row.date <= dateTo)
     }
 
-    // Sort
     const [field, dir] = sortBy.split('-')
     result.sort((a, b) => {
       let cmp = 0
@@ -221,7 +254,6 @@ export default function InvoiceList() {
     return result
   }, [rows, searchText, statusFilter, sortBy, dateFrom, dateTo])
 
-  // Summary stats
   const stats = useMemo(() => {
     const total = rows.length
     const totalAmount = rows.reduce((s, r) => s + r.amount, 0)
@@ -258,168 +290,157 @@ export default function InvoiceList() {
   const hasActiveFilters = searchText || statusFilter !== 'all' || dateFrom || dateTo
 
   return (
-    <DashboardLayout activeNav="invoices">
-      <div className="space-y-6" style={{ animation: 'fadeIn 0.4s ease-out' }}>
-        {/* Simple Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-[28px] font-bold tracking-tight text-[#111827]">Invoices</h2>
-            {/*<p className="mt-0.5 text-[14px] font-medium text-[#6B7280]">*/}
-            {/*  {stats.total} total invoice{stats.total !== 1 ? 's' : ''} · {formatMoney(stats.totalAmount)}*/}
-            {/*</p>*/}
-          </div>
-          <button
-            type="button"
-            onClick={() => navigate('/invoice/new')}
-            className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#0F766E] px-5 text-[14px] font-bold text-white shadow-sm hover:bg-[#0F766E]/90 transition-all"
-          >
-            New Invoice
-          </button>
-        </div>
-
-        {/* Summary Cards */}
-        <div className="grid grid-cols-4 gap-4">
-          {[
-            { label: 'Total Invoices', value: stats.total, sub: formatMoney(stats.totalAmount), color: 'border-l-emerald-500', icon: HiOutlineDocumentText, iconBg: 'bg-emerald-50 text-emerald-600' },
-            { label: 'Paid', value: stats.paid, sub: `of ${stats.total}`, color: 'border-l-blue-500', icon: HiOutlineCheckCircle, iconBg: 'bg-blue-50 text-blue-600' },
-            { label: 'Overdue', value: stats.overdue, sub: formatMoney(stats.overdueAmt), color: 'border-l-red-500', icon: HiOutlineExclamationCircle, iconBg: 'bg-red-50 text-red-600' },
-            { label: 'Collection Rate', value: stats.total > 0 ? `${Math.round((stats.paid / stats.total) * 100)}%` : '0%', sub: 'paid invoices', color: 'border-l-amber-500', icon: HiOutlineBanknotes, iconBg: 'bg-amber-50 text-amber-600' },
-          ].map((card, i) => (
-            <div
-              key={i}
-              className={`rounded-2xl border border-[#E5E7EB] border-l-[3px] ${card.color} bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md`}
-              style={{ animation: `fadeIn 0.4s ease-out ${i * 0.08}s both` }}
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-[12px] font-semibold uppercase tracking-wide text-[#6B7280]">{card.label}</p>
-                  <p className="mt-1 text-[28px] font-bold tabular-nums text-[#111827]">{card.value}</p>
-                  <p className="mt-0.5 text-[13px] font-medium text-[#9CA3AF]">{card.sub}</p>
-                </div>
-                <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${card.iconBg}`}>
-                  <card.icon className="h-5 w-5" />
-                </div>
-              </div>
+      <DashboardLayout activeNav="invoices">
+        <div className="space-y-6" style={{ animation: 'fadeIn 0.4s ease-out' }}>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-[28px] font-bold tracking-tight text-[#111827]">Invoices</h2>
             </div>
-          ))}
-        </div>
+            <button
+                type="button"
+                onClick={() => navigate('/invoice/new')}
+                className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#0F766E] px-5 text-[14px] font-bold text-white shadow-sm hover:bg-[#0F766E]/90 transition-all"
+            >
+              New Invoice
+            </button>
+          </div>
 
-        {/* Filters & Table */}
-        <div className="rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
-          {/* Filter Bar */}
-          <div className="border-b border-[#E5E7EB] p-5">
-            <div className="flex flex-col gap-4">
-              {/* Top row: Search + Sort + Date */}
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="relative flex-1 min-w-[240px] max-w-[360px]">
-                  <HiOutlineMagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
-                  <input
-                    type="search"
-                    placeholder="Search invoices, customers, amounts..."
-                    value={searchText}
-                    onChange={(e) => setSearchText(e.target.value)}
-                    className="h-10 w-full rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] pl-10 pr-3 text-[13px] text-[#111827] placeholder-[#9CA3AF] transition-colors focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <HiOutlineCalendarDays className="h-4 w-4 text-[#9CA3AF]" />
-                  <input
-                    type="date"
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
-                    className="h-10 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] px-3 text-[13px] text-[#111827] transition-colors focus:border-emerald-500 focus:outline-none"
-                    title="From date"
-                  />
-                  <span className="text-[12px] font-medium text-[#9CA3AF]">to</span>
-                  <input
-                    type="date"
-                    value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
-                    className="h-10 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] px-3 text-[13px] text-[#111827] transition-colors focus:border-emerald-500 focus:outline-none"
-                    title="To date"
-                  />
-                </div>
-
-                {/* Sort dropdown */}
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setShowSortMenu(!showSortMenu)}
-                    className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] px-3 text-[13px] font-medium text-[#111827] transition-colors hover:border-emerald-400"
-                  >
-                    <HiOutlineArrowsUpDown className="h-4 w-4 text-[#6B7280]" />
-                    {SORT_OPTIONS.find((o) => o.key === sortBy)?.label || 'Sort'}
-                    <HiOutlineChevronDown className="h-3.5 w-3.5 text-[#6B7280]" />
-                  </button>
-                  {showSortMenu && (
-                    <div className="absolute right-0 top-12 z-50 w-52 rounded-xl border border-[#E5E7EB] bg-white p-1.5 shadow-xl">
-                      {SORT_OPTIONS.map((opt) => (
-                        <button
-                          key={opt.key}
-                          type="button"
-                          onClick={() => { setSortBy(opt.key); setShowSortMenu(false) }}
-                          className={`w-full rounded-lg px-3 py-2 text-left text-[13px] font-medium transition-colors ${sortBy === opt.key ? 'bg-emerald-50 text-emerald-700' : 'text-[#374151] hover:bg-[#F9FAFB]'}`}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
+          <div className="grid grid-cols-4 gap-4">
+            {[
+              { label: 'Total Invoices', value: stats.total, sub: formatMoney(stats.totalAmount), color: 'border-l-emerald-500', icon: HiOutlineDocumentText, iconBg: 'bg-emerald-50 text-emerald-600' },
+              { label: 'Paid', value: stats.paid, sub: `of ${stats.total}`, color: 'border-l-blue-500', icon: HiOutlineCheckCircle, iconBg: 'bg-blue-50 text-blue-600' },
+              { label: 'Overdue', value: stats.overdue, sub: formatMoney(stats.overdueAmt), color: 'border-l-red-500', icon: HiOutlineExclamationCircle, iconBg: 'bg-red-50 text-red-600' },
+              { label: 'Collection Rate', value: stats.total > 0 ? `${Math.round((stats.paid / stats.total) * 100)}%` : '0%', sub: 'paid invoices', color: 'border-l-amber-500', icon: HiOutlineBanknotes, iconBg: 'bg-amber-50 text-amber-600' },
+            ].map((card, i) => (
+                <div
+                    key={i}
+                    className={`rounded-2xl border border-[#E5E7EB] border-l-[3px] ${card.color} bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md`}
+                    style={{ animation: `fadeIn 0.4s ease-out ${i * 0.08}s both` }}
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-[12px] font-semibold uppercase tracking-wide text-[#6B7280]">{card.label}</p>
+                      <p className="mt-1 text-[28px] font-bold tabular-nums text-[#111827]">{card.value}</p>
+                      <p className="mt-0.5 text-[13px] font-medium text-[#9CA3AF]">{card.sub}</p>
                     </div>
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${card.iconBg}`}>
+                      <card.icon className="h-5 w-5" />
+                    </div>
+                  </div>
+                </div>
+            ))}
+          </div>
+
+          <div className="rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
+            <div className="border-b border-[#E5E7EB] p-5">
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="relative flex-1 min-w-[240px] max-w-[360px]">
+                    <HiOutlineMagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
+                    <input
+                        type="search"
+                        placeholder="Search invoices, customers, amounts..."
+                        value={searchText}
+                        onChange={(e) => setSearchText(e.target.value)}
+                        className="h-10 w-full rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] pl-10 pr-3 text-[13px] text-[#111827] placeholder-[#9CA3AF] transition-colors focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <HiOutlineCalendarDays className="h-4 w-4 text-[#9CA3AF]" />
+                    <input
+                        type="date"
+                        value={dateFrom}
+                        onChange={(e) => setDateFrom(e.target.value)}
+                        className="h-10 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] px-3 text-[13px] text-[#111827] transition-colors focus:border-emerald-500 focus:outline-none"
+                        title="From date"
+                    />
+                    <span className="text-[12px] font-medium text-[#9CA3AF]">to</span>
+                    <input
+                        type="date"
+                        value={dateTo}
+                        onChange={(e) => setDateTo(e.target.value)}
+                        className="h-10 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] px-3 text-[13px] text-[#111827] transition-colors focus:border-emerald-500 focus:outline-none"
+                        title="To date"
+                    />
+                  </div>
+
+                  <div className="relative">
+                    <button
+                        type="button"
+                        onClick={() => setShowSortMenu(!showSortMenu)}
+                        className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] px-3 text-[13px] font-medium text-[#111827] transition-colors hover:border-emerald-400"
+                    >
+                      <HiOutlineArrowsUpDown className="h-4 w-4 text-[#6B7280]" />
+                      {SORT_OPTIONS.find((o) => o.key === sortBy)?.label || 'Sort'}
+                      <HiOutlineChevronDown className="h-3.5 w-3.5 text-[#6B7280]" />
+                    </button>
+                    {showSortMenu && (
+                        <div className="absolute right-0 top-12 z-50 w-52 rounded-xl border border-[#E5E7EB] bg-white p-1.5 shadow-xl">
+                          {SORT_OPTIONS.map((opt) => (
+                              <button
+                                  key={opt.key}
+                                  type="button"
+                                  onClick={() => { setSortBy(opt.key); setShowSortMenu(false) }}
+                                  className={`w-full rounded-lg px-3 py-2 text-left text-[13px] font-medium transition-colors ${sortBy === opt.key ? 'bg-emerald-50 text-emerald-700' : 'text-[#374151] hover:bg-[#F9FAFB]'}`}
+                              >
+                                {opt.label}
+                              </button>
+                          ))}
+                        </div>
+                    )}
+                  </div>
+
+                  {hasActiveFilters && (
+                      <button
+                          type="button"
+                          onClick={clearFilters}
+                          className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-100"
+                      >
+                        <HiOutlineXMark className="h-4 w-4" />
+                        Clear
+                      </button>
                   )}
                 </div>
 
-                {hasActiveFilters && (
-                  <button
-                    type="button"
-                    onClick={clearFilters}
-                    className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-100"
-                  >
-                    <HiOutlineXMark className="h-4 w-4" />
-                    Clear
-                  </button>
-                )}
-              </div>
-
-              {/* Status pills */}
-              <div className="flex flex-wrap items-center gap-2">
-                <HiOutlineFunnel className="h-4 w-4 text-[#9CA3AF]" />
-                {STATUS_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.key}
-                    type="button"
-                    onClick={() => setStatusFilter(opt.key)}
-                    className={`rounded-full px-4 py-1.5 text-[12px] font-semibold transition-all ${
-                      statusFilter === opt.key
-                        ? 'bg-emerald-600 text-white shadow-sm'
-                        : 'bg-[#F3F4F6] text-[#6B7280] hover:bg-[#E5E7EB]'
-                    }`}
-                  >
-                    {opt.label}
-                    {opt.key !== 'all' && (
-                      <span className="ml-1.5 opacity-70">
+                <div className="flex flex-wrap items-center gap-2">
+                  <HiOutlineFunnel className="h-4 w-4 text-[#9CA3AF]" />
+                  {STATUS_OPTIONS.map((opt) => (
+                      <button
+                          key={opt.key}
+                          type="button"
+                          onClick={() => setStatusFilter(opt.key)}
+                          className={`rounded-full px-4 py-1.5 text-[12px] font-semibold transition-all ${
+                              statusFilter === opt.key
+                                  ? 'bg-emerald-600 text-white shadow-sm'
+                                  : 'bg-[#F3F4F6] text-[#6B7280] hover:bg-[#E5E7EB]'
+                          }`}
+                      >
+                        {opt.label}
+                        {opt.key !== 'all' && (
+                            <span className="ml-1.5 opacity-70">
                         {rows.filter((r) => {
                           const statusMap = { open: 'open', partial: 'due', paid: 'closed', overdue: 'overdue' }
                           return r.status.kind === statusMap[opt.key]
                         }).length}
                       </span>
-                    )}
-                  </button>
-                ))}
+                        )}
+                      </button>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[960px] border-collapse text-left text-[13px]">
-              <thead>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[960px] border-collapse text-left text-[13px]">
+                <thead>
                 <tr className="border-b border-[#E5E7EB] bg-[#FAFAFA] text-[11px] font-bold uppercase tracking-wide text-[#6B7280]">
                   <th className="w-10 py-3 pl-5 pr-2">
                     <input
-                      type="checkbox"
-                      className="h-4 w-4 rounded border border-[#D1D5DB] bg-white accent-emerald-600 focus:ring-2 focus:ring-emerald-600/30"
-                      checked={selected.size === filteredAndSorted.length && filteredAndSorted.length > 0}
-                      onChange={toggleAll}
+                        type="checkbox"
+                        className="h-4 w-4 rounded border border-[#D1D5DB] bg-white accent-emerald-600 focus:ring-2 focus:ring-emerald-600/30"
+                        checked={selected.size === filteredAndSorted.length && filteredAndSorted.length > 0}
+                        onChange={toggleAll}
                     />
                   </th>
                   <th className="py-3 pr-4">Date</th>
@@ -430,133 +451,148 @@ export default function InvoiceList() {
                   <th className="py-3 pr-4">Status</th>
                   <th className="py-3 pr-5">Action</th>
                 </tr>
-              </thead>
-              <tbody>
+                </thead>
+                <tbody>
                 {loading ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <tr key={i} className="border-b border-[#F3F4F6]">
-                      {Array.from({ length: 8 }).map((_, j) => (
-                        <td key={j} className="py-4 px-4">
-                          <div className="h-4 w-full animate-pulse rounded-lg bg-[#F3F4F6]" />
-                        </td>
-                      ))}
-                    </tr>
-                  ))
+                    Array.from({ length: 5 }).map((_, i) => (
+                        <tr key={i} className="border-b border-[#F3F4F6]">
+                          {Array.from({ length: 8 }).map((_, j) => (
+                              <td key={j} className="py-4 px-4">
+                                <div className="h-4 w-full animate-pulse rounded-lg bg-[#F3F4F6]" />
+                              </td>
+                          ))}
+                        </tr>
+                    ))
                 ) : error ? (
-                  <tr>
-                    <td colSpan={8} className="py-12 text-center">
-                      <div className="flex flex-col items-center gap-2">
-                        <HiOutlineExclamationCircle className="h-8 w-8 text-red-400" />
-                        <p className="text-[14px] font-semibold text-red-600">{error}</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : filteredAndSorted.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="py-12 text-center">
-                      <div className="flex flex-col items-center gap-2">
-                        <HiOutlineDocumentText className="h-10 w-10 text-[#D1D5DB]" />
-                        <p className="text-[14px] font-semibold text-[#6B7280]">
-                          {hasActiveFilters ? 'No invoices match your filters' : 'No invoices yet'}
-                        </p>
-                        {hasActiveFilters && (
-                          <button
-                            type="button"
-                            onClick={clearFilters}
-                            className="mt-1 text-[13px] font-semibold text-emerald-600 hover:underline"
-                          >
-                            Clear all filters
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredAndSorted.map((row, i) => (
-                    <tr
-                      key={row.id}
-                      className={`border-b border-[#F3F4F6] transition-colors hover:bg-emerald-50/30 ${
-                        selected.has(row.id) ? 'bg-emerald-50/50' : i % 2 === 1 ? 'bg-[#FAFAFA]' : 'bg-white'
-                      }`}
-                    >
-                      <td className="py-3.5 pl-5 pr-2 align-middle">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 rounded border border-[#D1D5DB] bg-white accent-emerald-600 focus:ring-2 focus:ring-emerald-600/30"
-                          checked={selected.has(row.id)}
-                          onChange={() => toggleRow(row.id)}
-                        />
-                      </td>
-                      <td className="py-3.5 pr-4 align-middle font-medium text-[#111827]">{row.date}</td>
-                      <td className="py-3.5 pr-4 align-middle">
-                        <span className="font-bold text-emerald-700">{row.no}</span>
-                      </td>
-                      <td className="py-3.5 pr-4 align-middle font-medium text-[#111827]">{row.customer}</td>
-                      <td className="py-3.5 pr-4 align-middle text-[#6B7280]">{row.dueDate || '—'}</td>
-                      <td className="py-3.5 pr-4 align-middle text-right font-semibold tabular-nums text-[#111827]">
-                        {formatMoney(row.amount)}
-                      </td>
-                      <td className="py-3.5 pr-4 align-middle">
-                        <StatusBadge status={row.status} />
-                      </td>
-                      <td className="py-3.5 pr-5 align-middle">
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/invoice/edit/${row.id}`)}
-                            className="rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-50"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => navigate('/invoice/payment')}
-                            className="rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-blue-600 transition-colors hover:bg-blue-50"
-                          >
-                            Pay
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(row.id)}
-                            className="rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-red-500 transition-colors hover:bg-red-50"
-                          >
-                            Delete
-                          </button>
+                    <tr>
+                      <td colSpan={8} className="py-12 text-center">
+                        <div className="flex flex-col items-center gap-2">
+                          <HiOutlineExclamationCircle className="h-8 w-8 text-red-400" />
+                          <p className="text-[14px] font-semibold text-red-600">{error}</p>
                         </div>
                       </td>
                     </tr>
-                  ))
+                ) : filteredAndSorted.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-12 text-center">
+                        <div className="flex flex-col items-center gap-2">
+                          <HiOutlineDocumentText className="h-10 w-10 text-[#D1D5DB]" />
+                          <p className="text-[14px] font-semibold text-[#6B7280]">
+                            {hasActiveFilters ? 'No invoices match your filters' : 'No invoices yet'}
+                          </p>
+                          {hasActiveFilters && (
+                              <button
+                                  type="button"
+                                  onClick={clearFilters}
+                                  className="mt-1 text-[13px] font-semibold text-emerald-600 hover:underline"
+                              >
+                                Clear all filters
+                              </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                ) : (
+                    filteredAndSorted.map((row, i) => (
+                        <tr
+                            key={row.id}
+                            className={`border-b border-[#F3F4F6] transition-colors hover:bg-emerald-50/30 ${
+                                selected.has(row.id) ? 'bg-emerald-50/50' : i % 2 === 1 ? 'bg-[#FAFAFA]' : 'bg-white'
+                            }`}
+                        >
+                          <td className="py-3.5 pl-5 pr-2 align-middle">
+                            <input
+                                type="checkbox"
+                                className="h-4 w-4 rounded border border-[#D1D5DB] bg-white accent-emerald-600 focus:ring-2 focus:ring-emerald-600/30"
+                                checked={selected.has(row.id)}
+                                onChange={() => toggleRow(row.id)}
+                            />
+                          </td>
+                          <td className="py-3.5 pr-4 align-middle font-medium text-[#111827]">{row.date}</td>
+                          <td className="py-3.5 pr-4 align-middle">
+                            <span className="font-bold text-emerald-700">{row.no}</span>
+                          </td>
+                          <td className="py-3.5 pr-4 align-middle font-medium text-[#111827]">{row.customer}</td>
+                          <td className="py-3.5 pr-4 align-middle text-[#6B7280]">{row.dueDate || '—'}</td>
+                          <td className="py-3.5 pr-4 align-middle text-right font-semibold tabular-nums text-[#111827]">
+                            {formatMoney(row.amount)}
+                          </td>
+                          <td className="py-3.5 pr-4 align-middle">
+                            <StatusBadge status={row.status} />
+                          </td>
+                          <td className="py-3.5 pr-5 align-middle">
+                            <div className="flex items-center gap-2">
+                              <button
+                                  type="button"
+                                  onClick={() => navigate(`/invoice/edit/${row.id}`)}
+                                  className="rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-50"
+                              >
+                                Edit
+                              </button>
+                              {row.status.kind !== 'closed' && (
+                                  <button
+                                      type="button"
+                                      onClick={() => navigate('/invoice/payment', { state: { invoiceIds: [row.id.toString()] } })}
+                                      className="rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-blue-600 transition-colors hover:bg-blue-50"
+                                  >
+                                    Receive Payment
+                                  </button>
+                              )}
+                              <button
+                                  type="button"
+                                  onClick={() => handleDelete(row.id)}
+                                  className="rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-red-500 transition-colors hover:bg-red-50"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                    ))
                 )}
-              </tbody>
-              {filteredAndSorted.length > 0 && (
-                <tfoot>
-                  <tr className="border-t-2 border-[#E5E7EB] bg-[#FAFAFA]">
-                    <td colSpan={5} className="py-3.5 pl-5 text-[13px] font-bold text-[#111827]">
-                      Total ({filteredAndSorted.length} invoice{filteredAndSorted.length !== 1 ? 's' : ''})
-                    </td>
-                    <td className="py-3.5 pr-4 text-right text-[14px] font-bold tabular-nums text-[#111827]">
-                      {formatMoney(filteredTotal)}
-                    </td>
-                    <td colSpan={2} />
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-          </div>
+                </tbody>
+                {filteredAndSorted.length > 0 && (
+                    <tfoot>
+                    <tr className="border-t-2 border-[#E5E7EB] bg-[#FAFAFA]">
+                      <td colSpan={5} className="py-3.5 pl-5 text-[13px] font-bold text-[#111827]">
+                        Total ({filteredAndSorted.length} invoice{filteredAndSorted.length !== 1 ? 's' : ''})
+                      </td>
+                      <td className="py-3.5 pr-4 text-right text-[14px] font-bold tabular-nums text-[#111827]">
+                        {formatMoney(filteredTotal)}
+                      </td>
+                      <td colSpan={2} />
+                    </tr>
+                    </tfoot>
+                )}
+              </table>
+            </div>
 
-          {/* Footer */}
-          <div className="flex items-center justify-between border-t border-[#E5E7EB] px-5 py-3 text-[13px]">
+            <div className="flex items-center justify-between border-t border-[#E5E7EB] px-5 py-3 text-[13px]">
             <span className="font-medium text-[#6B7280]">
               Showing {filteredAndSorted.length} of {rows.length} invoices
             </span>
-            {selected.size > 0 && (
-              <span className="font-semibold text-emerald-600">
-                {selected.size} selected
-              </span>
-            )}
+              {selected.size > 0 && (
+                <div className="flex items-center gap-3">
+                  <span className="font-semibold text-emerald-600">{selected.size} selected</span>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/invoice/payment', { state: { invoiceIds: Array.from(selected) } })}
+                    className="rounded-lg bg-emerald-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-emerald-700"
+                  >
+                    Receive Payment
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleBatchDelete}
+                    className="rounded-lg bg-red-50 px-3 py-1.5 text-[12px] font-semibold text-red-600 hover:bg-red-100"
+                  >
+                    Delete
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
-    </DashboardLayout>
+      </DashboardLayout>
   )
 }

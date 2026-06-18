@@ -6,5 +6,5 @@ import java.util.Optional;
 
 public interface JournalEntryRepo extends JpaRepository<JournalEntry, Long> {
 
-    Optional<JournalEntry> findByDocNumberAndCompanyId(String docNumber, Long companyId);
+    Optional<JournalEntry> findByDocNumberAndCompanyId(String id, Long companyId);
 }

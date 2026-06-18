@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import { Link, useNavigate, useParams, useLocation } from 'react-router-dom'
-import { HiOutlinePlus, HiOutlineTrash, HiOutlineXMark, HiOutlineChevronDown } from 'react-icons/hi2'
+import { HiOutlinePlus, HiOutlineTrash, HiOutlineXMark } from 'react-icons/hi2'
 import CustomSelect from '../components/CustomSelect'
 import FormSkeleton from '../components/FormSkeleton'
 import QuickCreateSupplierModal from '../components/QuickCreateSupplierModal'
@@ -56,7 +56,6 @@ export default function CreateBill() {
   const [activeLineIndex, setActiveLineIndex] = useState(null)
   const [balance, setBalance] = useState(0)
   const [paymentsAllocations, setPaymentsAllocations] = useState([])
-  const [showPaymentMenu, setShowPaymentMenu] = useState(false)
 
   useEffect(() => {
     if (!me || meError) return
@@ -208,6 +207,51 @@ export default function CreateBill() {
 
   function closeEditor() {
     navigate('/bills')
+  }
+
+  async function handleSaveAndMakePayment() {
+    setError('')
+    if (!me || meError) { setError('Sign in and complete registration before creating bills.'); return }
+    setBusy(true)
+    try {
+      const token = await getFreshToken()
+      if (!token) throw new Error('Not signed in')
+      const payload = {
+        docNumber: docNumber || undefined,
+        txnDate,
+        dueDate: dueDate || undefined,
+        supplierId: supplierId ? parseInt(supplierId, 10) : undefined,
+        memo,
+        lines: lines
+          .filter(l => l.accountId && Number.parseFloat(l.amount) > 0)
+          .map(l => ({
+            accountId: parseInt(l.accountId, 10),
+            description: l.description,
+            amount: Number.parseFloat(l.amount),
+          }))
+      }
+      if (payload.lines.length === 0) throw new Error('Please add at least one line with an account and amount > 0.')
+      const url = isEdit ? `/bill/${id}` : '/bill'
+      const method = isEdit ? 'PUT' : 'POST'
+      const saved = await api(url, { method, token, body: payload })
+      // Immediately record full payment for this bill
+      const refNo = 'PAY-' + Math.floor(10000 + Math.random() * 90000)
+      await api('/bill/payment', {
+        method: 'POST',
+        token,
+        body: {
+          refNo,
+          paymentDate: new Date().toISOString().slice(0, 10),
+          depositTo: 'Bank',
+          payments: [{ billId: saved.id, amount: Number.parseFloat(saved.totalAmt) || 0 }],
+        },
+      })
+      navigate('/bills')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save bill')
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -493,41 +537,24 @@ export default function CreateBill() {
             Cancel
           </button>
           <div className="flex items-center gap-3">
+            {!(isEdit && balance <= 0) && (
+              <button
+                type="button"
+                onClick={handleSaveAndMakePayment}
+                disabled={busy}
+                className="inline-flex h-10 items-center justify-center rounded-xl bg-[#374151] px-5 text-[14px] font-bold text-white hover:bg-[#4B5563] disabled:opacity-60"
+              >
+                {busy ? 'Saving…' : 'Save & Make Payment'}
+              </button>
+            )}
             <button
               type="submit"
               form="create-bill-form"
               disabled={busy}
-              className="inline-flex h-10 items-center justify-center rounded-xl bg-[#374151] px-5 text-[14px] font-bold text-white hover:bg-[#4B5563] disabled:opacity-60"
+              className="inline-flex h-10 items-center justify-center rounded-xl bg-[#0F766E] px-5 text-[14px] font-bold text-white hover:bg-[#0F766E]/90 disabled:opacity-60"
             >
               {busy ? 'Saving…' : (isEdit ? 'Update' : 'Save')}
             </button>
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setShowPaymentMenu(!showPaymentMenu)}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#0F766E] px-5 text-[14px] font-bold text-white hover:bg-[#0F766E]/90"
-                title="Record a payment"
-              >
-                Record payment
-                <HiOutlineChevronDown className="h-4 w-4" />
-              </button>
-              {showPaymentMenu && (
-                <div className="absolute bottom-full right-0 mb-2 w-56 overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-lg z-50">
-                  <button
-                    onClick={() => navigate('/invoice/payment')}
-                    className="w-full px-4 py-3 text-left text-[13px] font-semibold text-[#111827] hover:bg-[#F9FAFB]"
-                  >
-                    Receive payment (Invoice)
-                  </button>
-                  <button
-                    onClick={() => navigate('/bill/payment')}
-                    className="w-full px-4 py-3 text-left text-[13px] font-semibold text-[#111827] hover:bg-[#F9FAFB]"
-                  >
-                    Make payment (Bill)
-                  </button>
-                </div>
-              )}
-            </div>
           </div>
         </div>
       </div>

@@ -228,6 +228,43 @@ export default function BillsList() {
     }
   }
 
+  async function handleBatchDelete() {
+    if (selected.size === 0) return
+    if (!window.confirm(`Delete ${selected.size} selected bill${selected.size > 1 ? 's' : ''}?`)) return
+    try {
+      const token = await getFreshToken()
+      if (!token) return
+      await Promise.all(Array.from(selected).map(id => api(`/bill/${id}`, { method: 'DELETE', token })))
+      setBills(prev => prev.filter(b => !selected.has(b.id.toString())))
+      setSelected(new Set())
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not delete bills')
+    }
+  }
+
+  async function handlePayBill(billId, balance) {
+    if (!window.confirm(`Make full payment of $${Number(balance).toFixed(2)} for this bill?`)) return
+    try {
+      const token = await getFreshToken()
+      if (!token) return
+      const refNo = 'PAY-' + Math.floor(10000 + Math.random() * 90000)
+      await api('/bill/payment', {
+        method: 'POST',
+        token,
+        body: {
+          refNo,
+          paymentDate: new Date().toISOString().slice(0, 10),
+          depositTo: 'Bank',
+          payments: [{ billId: Number(billId), amount: Number(balance) }],
+        },
+      })
+      const data = await api('/bill', { token })
+      setBills(data || [])
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not record payment')
+    }
+  }
+
   const hasActiveFilters = searchText || statusFilter !== 'all' || dateFrom || dateTo
 
   return (
@@ -415,8 +452,10 @@ export default function BillsList() {
                         <div className="flex items-center gap-2">
                           <button type="button" onClick={() => navigate(`/bill/edit/${row.id}`)}
                             className="rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-rose-700 transition-colors hover:bg-rose-50">Edit</button>
-                          <button type="button" onClick={() => navigate('/bill/payment')}
-                            className="rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-blue-600 transition-colors hover:bg-blue-50">Pay</button>
+                          {row.status.kind !== 'closed' && (
+                            <button type="button" onClick={() => navigate('/bill/payment', { state: { billIds: [row.id.toString()] } })}
+                              className="rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-blue-600 transition-colors hover:bg-blue-50">Pay</button>
+                          )}
                           <button type="button" onClick={() => handleDelete(row.id)}
                             className="rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-red-500 transition-colors hover:bg-red-50">Delete</button>
                         </div>
@@ -441,7 +480,25 @@ export default function BillsList() {
 
           <div className="flex items-center justify-between border-t border-[#E5E7EB] px-5 py-3 text-[13px]">
             <span className="font-medium text-[#6B7280]">Showing {filteredAndSorted.length} of {rows.length} bills</span>
-            {selected.size > 0 && <span className="font-semibold text-rose-600">{selected.size} selected</span>}
+            {selected.size > 0 && (
+              <div className="flex items-center gap-3">
+                <span className="font-semibold text-rose-600">{selected.size} selected</span>
+                <button
+                  type="button"
+                  onClick={() => navigate('/bill/payment', { state: { billIds: Array.from(selected) } })}
+                  className="rounded-lg bg-rose-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-rose-700"
+                >
+                  Pay
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBatchDelete}
+                  className="rounded-lg bg-red-50 px-3 py-1.5 text-[12px] font-semibold text-red-600 hover:bg-red-100"
+                >
+                  Delete
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
