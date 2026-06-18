@@ -41,6 +41,10 @@ public class InvoiceServiceImpl implements InvoiceService {
         Long companyId = SecurityUtils.requireCompanyId();
         Company company = companyRepo.getReferenceById(companyId);
 
+        if (invoiceRepo.existsByDocNumberAndCompanyId(req.getDocNumber(), companyId)) {
+            throw new AccountingException(ErrorCode.DOC_NUMBER_EXISTS);
+        }
+
         Invoice invoice = InvoiceMapper.toEntity(req);
         invoice.setCompany(company);
 
@@ -107,6 +111,10 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .orElseThrow(() -> new AccountingException(ErrorCode.INVOICE_NOT_FOUND));
 
         String oldDocNumber = invoice.getDocNumber();
+
+        if (!oldDocNumber.equals(req.getDocNumber()) && invoiceRepo.existsByDocNumberAndCompanyId(req.getDocNumber(), companyId)) {
+            throw new AccountingException(ErrorCode.DOC_NUMBER_EXISTS);
+        }
 
         invoice.setDocNumber(req.getDocNumber());
         invoice.setTxnDate(req.getTxnDate());

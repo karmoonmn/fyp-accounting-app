@@ -13,6 +13,8 @@ public interface InvoiceRepo extends JpaRepository<Invoice, Long> {
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"customer", "lines"})
     Optional<Invoice> findByIdAndCompanyId(Long id, Long companyId);
 
+    boolean existsByDocNumberAndCompanyId(String docNumber, Long companyId);
+
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"customer"})
     List<Invoice> findAllByCompanyIdOrderByTxnDateDesc(Long companyId);
 
