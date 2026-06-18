@@ -61,26 +61,26 @@ export default function MainDashboard() {
     const loadDashboard = async () => {
       try {
         const forecastRes = await api('/api/reports/forecast', { token })
-        
+
         const mappedChart = forecastRes.historicalData.map(d => ({
           month: d.month,
           revenue: d.revenue,
           expense: d.expenses
         }))
         setChartData(mappedChart)
-        
+
         const lastMonth = forecastRes.historicalData[forecastRes.historicalData.length - 1] || { revenue: 0, expenses: 0 }
         const prevMonth = forecastRes.historicalData[forecastRes.historicalData.length - 2] || { revenue: 0, expenses: 0 }
-        
+
         const calcTrend = (curr, prev) => {
           if (prev === 0) return '+0.0%'
           const pct = ((curr - prev) / prev) * 100
           return `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`
         }
-        
+
         const incTrend = calcTrend(lastMonth.revenue, prevMonth.revenue)
         const expTrend = calcTrend(lastMonth.expenses, prevMonth.expenses)
-        
+
         const formatMoney = (v) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v)
 
         const dateStr = new Date().toISOString().split('T')[0]
@@ -98,7 +98,7 @@ export default function MainDashboard() {
             b.status === 'OVERDUE' ||
             (b.status !== 'PAID' && b.dueDate && new Date(b.dueDate) < new Date() && (b.balance ?? b.totalAmt) > 0)
           ).length
-        } catch (e) {}
+        } catch (e) { }
 
         setSummaryCards([
           { label: 'Total Income', amount: formatMoney(lastMonth.revenue), trend: `${incTrend} from last month`, trendUp: !incTrend.startsWith('-'), gradient: 'from-emerald-500 to-teal-600', icon: HiOutlineArrowTrendingUp, iconBg: 'bg-emerald-500/10 text-emerald-600' },
@@ -114,7 +114,7 @@ export default function MainDashboard() {
   }, [token])
 
   const aiInsights = [
-    { title: 'Anomaly Detected', description: 'Unusual expense pattern detected in Marketing category', type: 'alert' },
+    // { title: 'Anomaly Detected', description: 'Unusual expense pattern detected in Marketing category', type: 'alert' },
     { title: 'Spending Analysis', description: 'Your office supplies spending is 23% lower than industry average', type: 'insight' },
     { title: 'Monthly Forecast', description: 'Projected cash flow: $45,200 by month-end', type: 'forecast' },
   ]
@@ -252,9 +252,8 @@ export default function MainDashboard() {
                   <button
                     type="button"
                     key={period}
-                    className={`px-4 py-2 rounded-lg text-[13px] font-semibold transition-all ${
-                      index === 1 ? 'bg-white text-emerald-700 shadow-sm' : 'text-[#64748B] hover:text-[#111827]'
-                    }`}
+                    className={`px-4 py-2 rounded-lg text-[13px] font-semibold transition-all ${index === 1 ? 'bg-white text-emerald-700 shadow-sm' : 'text-[#64748B] hover:text-[#111827]'
+                      }`}
                   >
                     {period}
                   </button>

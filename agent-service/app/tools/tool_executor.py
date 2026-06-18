@@ -191,6 +191,7 @@ async def run_agent_with_tools(
                 call_factory=lambda: bound_model.ainvoke(messages)
             )
         messages.append(response)
+        logger.info("AI Raw Response content: %s", response.content)
 
         # If no tool calls → the model produced a final text answer
         if not response.tool_calls:
@@ -209,6 +210,15 @@ async def run_agent_with_tools(
             tool_name = tc["name"]
             tool_args = tc.get("args", {})
             tool_id = tc.get("id", tool_name)
+
+            # Intercept write operations so we don't actually execute them or loop back
+            if tool_name in ["create_invoice_action", "create_bill_action"]:
+                # Resolve the tool call so the LLM doesn't crash on the next turn with a 400 Bad Request
+                messages.append(
+                    ToolMessage(content="Action proposed to user for confirmation.", tool_call_id=tool_id)
+                )
+                action_str = "create" # map to the expected action string in invoice_agent/expense_agent
+                return json.dumps({"action": action_str, "data": tool_args}), messages
 
             result_str = await _execute_tool(tool_name, tool_args, token, company_id)
 

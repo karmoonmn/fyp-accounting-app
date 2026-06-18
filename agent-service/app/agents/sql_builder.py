@@ -19,6 +19,7 @@ from langchain_core.messages import AIMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from app.config import settings
+from app.utils.llm import get_resilient_model
 from app.models.state import AgentState
 
 logger = logging.getLogger(__name__)
@@ -58,12 +59,8 @@ Rules:
 """
 
 
-def _get_model() -> ChatGoogleGenerativeAI:
-    return ChatGoogleGenerativeAI(
-        model=settings.gemini_model,
-        google_api_key=settings.google_api_key,
-        temperature=0.0,
-    )
+def _get_model():
+    return get_resilient_model(temperature=0.1)
 
 
 async def sql_builder(state: AgentState) -> dict[str, Any]:

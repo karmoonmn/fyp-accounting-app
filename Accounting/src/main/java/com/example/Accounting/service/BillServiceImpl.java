@@ -38,7 +38,11 @@ public class BillServiceImpl implements BillService {
     public Bill createBill(BillReq req, Long companyId) {
         Company company = companyRepo.findById(companyId)
                 .orElseThrow(() -> new RuntimeException("Company not found"));
-
+        
+        if (billRepo.existsByDocNumberAndCompanyId(req.getDocNumber(), companyId)) {
+            throw new AccountingException(ErrorCode.DOC_NUMBER_EXISTS);
+        }
+        
         Bill bill = new Bill();
         bill.setDocNumber(req.getDocNumber());
         bill.setTxnDate(req.getTxnDate());
@@ -151,6 +155,9 @@ public class BillServiceImpl implements BillService {
         }
 
         String oldDocNumber = bill.getDocNumber();
+        if (!oldDocNumber.equals(req.getDocNumber()) && billRepo.existsByDocNumberAndCompanyId(req.getDocNumber(), companyId)) {
+            throw new AccountingException(ErrorCode.DOC_NUMBER_EXISTS);
+        }
         bill.setDocNumber(req.getDocNumber());
         bill.setTxnDate(req.getTxnDate());
         bill.setDueDate(req.getDueDate());

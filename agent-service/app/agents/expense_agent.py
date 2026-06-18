@@ -17,7 +17,8 @@ from langchain_core.messages import AIMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from app.clients import spring_boot_client
-from app.config import settings, get_api_key
+from app.config import settings
+from app.utils.llm import get_resilient_model
 from app.models.actions import ProposedAction, LineItemAction
 from app.models.state import AgentState
 from app.tools.accounting_tools import EXPENSE_TOOLS
@@ -30,20 +31,25 @@ EXPENSE_SYSTEM_PROMPT = """\
 You are an Expense Management Agent for an accounting system.
 
 Your job is to help the user create, view, update, or delete bills and expenses.
+YOU ARE FULLY CAPABLE OF CREATING, UPDATING, AND DELETING BILLS AND EXPENSES.
+When you are ready to create a bill, you MUST use the create_bill_action tool.
 
-You have access to tools to look up suppliers, accounts, and bills.
-USE the tools to resolve supplier names to IDs and find the correct
-expense account IDs rather than asking the user for IDs.
+You have access to tools to look up suppliers, bills, and accounts.
+USE the tools to resolve supplier names to IDs and look up bill details
+rather than asking the user for IDs.
+
+CRITICAL INSTRUCTION: To create a bill, you MUST call the `create_bill_action` tool with the extracted data.
 
 When the user wants to CREATE a bill/expense, extract:
 - docNumber (bill number — accept ANY format the user provides, do NOT reject or question the format)
 - txnDate (transaction date, default to today, format: YYYY-MM-DD)
 - dueDate (optional, format: YYYY-MM-DD)
-- supplierId or supplierName (use search_suppliers tool to resolve)
+- supplierId (use search_suppliers tool to resolve)
+- supplierName (CRITICAL: You MUST extract the raw supplier name exactly as provided by the user, e.g. 'abc')
 - memo (optional)
-- lines: list of {description, amount, accountName}
-  - Use the get_chart_of_accounts tool to find the correct account ID
-    for each expense category.
+- lines: list of {description, amount, accountId, accountName}
+  - You MUST populate accountId using the ID from the AVAILABLE ACCOUNTS list injected below!
+  - You MUST populate accountName using the exact name of the account you chose.
 
 When the user wants to VIEW bills, use the list_all_bills or
 get_bill_details tools to fetch the data.
@@ -52,23 +58,19 @@ When the user wants to DELETE, confirm the bill ID.
 
 If extracted_data from a document (receipt/bill image) is available, use it.
 
-Once you have gathered enough information, respond as a JSON object with:
+Once you have gathered enough information to create a bill, CALL the `create_bill_action` tool.
+For update or delete operations, output a JSON block like:
 {
-  "action": "create" | "list" | "get" | "update" | "delete",
-  "data": { ... extracted fields ... }
+  "action": "update" | "delete",
+  "data": { ... }
 }
 
 If information is still missing after using tools, ask the user for it.
 """
 
 
-def _get_model() -> ChatGoogleGenerativeAI:
-    return ChatGoogleGenerativeAI(
-        model=settings.gemini_model,
-        google_api_key=get_api_key(),
-        temperature=0.1,
-        max_retries=0,
-    )
+def _get_model():
+    return get_resilient_model(temperature=0.1)
 
 
 async def expense_agent(state: AgentState) -> dict[str, Any]:
@@ -78,8 +80,19 @@ async def expense_agent(state: AgentState) -> dict[str, Any]:
     company_id = state["company_id"]
     extracted = state.get("extracted_data")
 
+    try:
+        accounts = await spring_boot_client.get_account_tree(token, company_id)
+        from app.agents.expense_agent import _flatten_accounts
+        account_map = _flatten_accounts(accounts)
+        account_context = f"\n\nAVAILABLE ACCOUNTS (Name -> ID):\n{json.dumps(account_map, indent=2)}\nIMPORTANT: You MUST select the most appropriate account ID from this list for each expense line item!"
+    except Exception as e:
+        logger.warning(f"Failed to fetch accounts for prompt injection: {e}")
+        account_context = ""
+
+    dynamic_prompt = EXPENSE_SYSTEM_PROMPT + account_context
+
     messages = prepare_messages_for_llm(
-        system_prompt=EXPENSE_SYSTEM_PROMPT,
+        system_prompt=dynamic_prompt,
         state_messages=state["messages"],
         conversation_summary=state.get("conversation_summary"),
     )
@@ -88,6 +101,8 @@ async def expense_agent(state: AgentState) -> dict[str, Any]:
         messages.append(
             SystemMessage(content=f"Extracted document data:\n{json.dumps(extracted, indent=2)}")
         )
+
+    original_msg_count = len(messages)
 
     # Run the tool-calling loop
     content, messages = await run_agent_with_tools(
@@ -102,9 +117,12 @@ async def expense_agent(state: AgentState) -> dict[str, Any]:
     try:
         parsed = _extract_json(content)
     except Exception:
+        new_msgs = messages[original_msg_count:]
+        if not new_msgs:
+            new_msgs = [AIMessage(content=content)]
         return {
             "final_response": content,
-            "messages": [AIMessage(content=content)],
+            "messages": new_msgs,
             "pending_intent": "EXPENSE_MGMT",
             "pending_context": {"awaiting": "user_details"},
         }
@@ -116,9 +134,10 @@ async def expense_agent(state: AgentState) -> dict[str, Any]:
     if action == "list":
         bills = await spring_boot_client.list_bills(token, company_id)
         summary = _format_bill_list(bills)
+        new_msgs = messages[original_msg_count:] + [AIMessage(content=summary)]
         return {
             "final_response": summary,
-            "messages": [AIMessage(content=summary)],
+            "messages": new_msgs,
             "pending_intent": None,
             "pending_context": None,
         }
@@ -130,7 +149,8 @@ async def expense_agent(state: AgentState) -> dict[str, Any]:
             return {"final_response": msg, "messages": [AIMessage(content=msg)]}
         bill = await spring_boot_client.get_bill(int(bill_id), token, company_id)
         summary = f"**Bill #{bill.get('docNumber', bill_id)}**\n" + json.dumps(bill, indent=2, default=str)
-        return {"final_response": summary, "messages": [AIMessage(content=summary)]}
+        new_msgs = messages[original_msg_count:] + [AIMessage(content=summary)]
+        return {"final_response": summary, "messages": new_msgs}
 
     # ── Write operations — build ProposedAction ───────────────
     if action == "create":
@@ -143,17 +163,33 @@ async def expense_agent(state: AgentState) -> dict[str, Any]:
 
         line_items = []
         for line in data.get("lines", []):
-            amount = float(line.get("amount", 0))
+            qty = float(line.get("quantity", 1))
+            price = float(line.get("unitPrice", 0))
+            explicit_amt = line.get("amount")
+            # If AI passed amount directly instead of unitPrice, use it
+            if explicit_amt and price == 0:
+                final_amt = float(explicit_amt)
+            else:
+                final_amt = round(qty * price, 2)
+            
             acct_name = line.get("accountName", line.get("account_name", ""))
             acct_id = line.get("accountId", line.get("account_id"))
             if not acct_id:
                 acct_id = _resolve_account_id(acct_name, account_map)
+            
+            # Fallback for missing account ID to prevent 500 error
+            if not acct_id:
+                acct_id = account_map.get("uncategorized expense") or account_map.get("miscellaneous expense")
+            
+            if not acct_id:
+                msg = f"I need an expense category (account) for the '{line.get('description', 'item')}'. What kind of expense is this?"
+                return {"final_response": msg, "messages": messages[original_msg_count:] + [AIMessage(content=msg)]}
 
             line_items.append(LineItemAction(
                 description=line.get("description", ""),
-                quantity=1.0,
-                unit_price=amount,
-                amount=amount,
+                quantity=qty,
+                unit_price=price,
+                amount=final_amt,
                 account_id=acct_id,
                 account_name=acct_name or "Uncategorized",
             ))
@@ -199,41 +235,47 @@ async def expense_agent(state: AgentState) -> dict[str, Any]:
             f"Please click **Confirm** to post it to your books."
         )
 
+        new_msgs = messages[original_msg_count:] + [AIMessage(content=confirmation_msg)]
+
         return {
             "proposed_action": proposed.model_dump(),
             "confirmation_status": "pending",
             "final_response": confirmation_msg,
-            "messages": [AIMessage(content=confirmation_msg)],
+            "messages": new_msgs,
             "pending_intent": None,
             "pending_context": None,
         }
 
     if action == "delete":
-        bill_id = data.get("id")
+        target_id = data.get("id")
         proposed = ProposedAction(
             action_type="DELETE_BILL",
-            summary=f"Delete bill #{bill_id}",
-            target_id=int(bill_id) if bill_id else None,
+            summary=f"Delete bill #{target_id}",
+            target_id=int(target_id) if target_id else None,
         )
+        new_msgs = messages[original_msg_count:] + [AIMessage(content=f"Delete bill #{target_id}?")]
         return {
             "proposed_action": proposed.model_dump(),
             "confirmation_status": "pending",
-            "final_response": f"Are you sure you want to delete bill #{bill_id}? Click **Confirm** to proceed.",
-            "messages": [AIMessage(content=f"Delete bill #{bill_id}?")],
+            "final_response": f"Are you sure you want to delete bill #{target_id}? Click **Confirm** to proceed.",
+            "messages": new_msgs,
         }
 
-    return {"final_response": content, "messages": [AIMessage(content=content)]}
+    return {"final_response": content, "messages": messages}
 
 
 def _flatten_accounts(tree: list[dict]) -> dict[str, int]:
-    """Flatten account tree into {lowercase_name: id} map."""
+    """Flatten account tree into {lowercase_name: id} map. Only includes leaf accounts!"""
     result = {}
     for node in tree:
-        result[node.get("name", "").lower()] = node.get("id")
+        if not node.get("children"):
+            result[node.get("name", "").lower()] = node.get("id")
         for child in node.get("children", []):
-            result[child.get("name", "").lower()] = child.get("id")
+            if not child.get("children"):
+                result[child.get("name", "").lower()] = child.get("id")
             for grandchild in child.get("children", []):
-                result[grandchild.get("name", "").lower()] = grandchild.get("id")
+                if not grandchild.get("children"):
+                    result[grandchild.get("name", "").lower()] = grandchild.get("id")
     return result
 
 

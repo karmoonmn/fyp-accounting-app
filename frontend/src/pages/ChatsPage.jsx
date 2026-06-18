@@ -13,7 +13,7 @@ import {
   HiOutlineClock,
 } from 'react-icons/hi2'
 import DashboardLayout from '../components/DashboardLayout'
-import { supabase } from '../supabase'
+import { api } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
@@ -65,9 +65,14 @@ function ConfirmationCard({ action, onConfirm, onCancel, onModify }) {
         {action.line_items?.length > 0 && (
           <div className="mt-3 space-y-1.5 rounded-xl bg-[#F9FAFB] p-3 border border-[#E5E7EB]">
             {action.line_items.map((item, i) => (
-              <div key={i} className="flex justify-between text-[12px] text-[#374151]">
-                <span className="truncate mr-3">{item.description}</span>
-                <span className="font-semibold shrink-0">${(item.amount || 0).toFixed(2)}</span>
+              <div key={i} className="flex justify-between text-[12px] text-[#374151] items-start mb-1.5 last:mb-0">
+                <div className="flex flex-col mr-3">
+                  <span className="truncate">{item.description} {item.account_name && <span className="text-[#9CA3AF] text-[11px] ml-1">({item.account_name})</span>}</span>
+                  {(item.quantity != null && item.unit_price != null && item.quantity !== 1 && item.unit_price !== 0) && (
+                    <span className="text-[#6B7280] text-[11px]">{item.quantity} × ${item.unit_price.toFixed(2)}</span>
+                  )}
+                </div>
+                <span className="font-semibold shrink-0 mt-0.5">${(item.amount || 0).toFixed(2)}</span>
               </div>
             ))}
             <div className="border-t border-[#E5E7EB] pt-2 mt-2 flex justify-between text-[13px] font-bold text-[#111827]">
@@ -76,15 +81,18 @@ function ConfirmationCard({ action, onConfirm, onCancel, onModify }) {
             </div>
           </div>
         )}
-        <div className="flex gap-2 mt-3 flex-wrap">
-          <button onClick={onConfirm} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#0F766E] px-3 py-2.5 text-[12px] font-bold text-white hover:bg-[#0d6d66] active:scale-[0.98] transition-all">
-            <HiOutlineCheckCircle className="h-4 w-4" /> Confirm
+        <div className="grid grid-cols-2 gap-2 mt-3">
+          <button disabled={action.status === 'completed' || action.status === 'cancelled'} onClick={onConfirm} className={`inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#0F766E] px-3 py-2.5 text-[12px] font-bold text-white transition-all ${action.status === 'completed' || action.status === 'cancelled' ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#0d6d66] active:scale-[0.98]'}`}>
+            <HiOutlineCheckCircle className="h-4 w-4" /> {action.status === 'completed' ? 'Saved' : 'Confirm'}
           </button>
-          <button onClick={() => onModify('chat')} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-white border border-[#E5E7EB] px-3 py-2.5 text-[12px] font-bold text-[#374151] hover:bg-[#F9FAFB] active:scale-[0.98] transition-all">
-            <HiOutlinePencilSquare className="h-4 w-4" /> Modify
+          <button disabled={action.status === 'completed' || action.status === 'cancelled'} onClick={onCancel} className={`inline-flex items-center justify-center gap-1.5 rounded-xl bg-white border border-[#FEE2E2] px-3 py-2.5 text-[12px] font-bold text-[#DC2626] transition-all ${action.status === 'completed' || action.status === 'cancelled' ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#FEF2F2] active:scale-[0.98]'}`}>
+            <HiOutlineXCircle className="h-4 w-4" /> {action.status === 'cancelled' ? 'Cancelled' : 'Cancel'}
           </button>
-          <button onClick={onCancel} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-white border border-[#FEE2E2] px-3 py-2.5 text-[12px] font-bold text-[#DC2626] hover:bg-[#FEF2F2] active:scale-[0.98] transition-all">
-            <HiOutlineXCircle className="h-4 w-4" /> Cancel
+          <button disabled={action.status === 'completed' || action.status === 'cancelled'} onClick={() => onModify('chat')} className={`inline-flex items-center justify-center gap-1.5 rounded-xl bg-white border border-[#E5E7EB] px-3 py-2.5 text-[12px] font-bold text-[#374151] transition-all ${action.status === 'completed' || action.status === 'cancelled' ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#F9FAFB] active:scale-[0.98]'}`}>
+            <HiOutlineChatBubbleLeftRight className="h-4 w-4" /> Modify via Chat
+          </button>
+          <button disabled={action.status === 'completed' || action.status === 'cancelled'} onClick={() => onModify('manual')} className={`inline-flex items-center justify-center gap-1.5 rounded-xl bg-white border border-[#E5E7EB] px-3 py-2.5 text-[12px] font-bold text-[#374151] transition-all ${action.status === 'completed' || action.status === 'cancelled' ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#F9FAFB] active:scale-[0.98]'}`}>
+            <HiOutlinePencilSquare className="h-4 w-4" /> Modify Manually
           </button>
         </div>
       </div>
@@ -95,7 +103,7 @@ function ConfirmationCard({ action, onConfirm, onCancel, onModify }) {
 /* ─── Main Page ────────────────────────────────────────────────────────────── */
 
 export default function ChatsPage() {
-  const { firebaseUser, me, getFreshToken } = useAuth()
+  const { me, getFreshToken, idToken: token } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
 
@@ -107,6 +115,7 @@ export default function ChatsPage() {
   const [activeConvId, setActiveConvId] = useState(null)
   const [messages, setMessages] = useState([])
   const [msgsLoading, setMsgsLoading] = useState(false)
+  const [isComposing, setIsComposing] = useState(false)
 
   // Send state
   const [input, setInput] = useState('')
@@ -114,34 +123,29 @@ export default function ChatsPage() {
   const [pendingAction, setPendingAction] = useState(null)
   const [selectedFile, setSelectedFile] = useState(null)
 
-  // Thread mapping: conversationId → agent threadId
-  const [threadMap, setThreadMap] = useState({})
-
   const listRef = useRef(null)
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
+  // When a fresh response just arrived (activeConvId just set from null), skip the
+  // DB message reload so we don't wipe optimistic UI / confirmation card.
+  const skipNextLoadRef = useRef(false)
+  const isSendingRef = useRef(false)
 
-  const userId = me?.userId   // Always Firebase UID string
   const companyId = me?.company?.id || me?.companyId || 1
 
-  // Check if Supabase is configured
-  const supabaseConfigured = Boolean(
-    import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY
-  )
-
-  /* ── Load conversations ─────────────────────────────────────────────────── */
+  /* ── Load conversations from backend ────────────────────────────────────── */
 
   const loadConversations = useCallback(async () => {
-    if (!userId) return
+    if (!token) return
     setConvsLoading(true)
-    const { data, error } = await supabase
-      .from('conversation')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-    if (!error && data) setConversations(data)
+    try {
+      const data = await api('/api/conversations', { token })
+      if (data) setConversations(data)
+    } catch (e) {
+      console.error('Failed to load conversations:', e)
+    }
     setConvsLoading(false)
-  }, [userId])
+  }, [token])
 
   useEffect(() => {
     loadConversations()
@@ -151,57 +155,35 @@ export default function ChatsPage() {
 
   useEffect(() => {
     const convIdFromUrl = searchParams.get('conversation')
-    if (!convIdFromUrl || !userId) return
+    if (!convIdFromUrl || !token) return
+    // Already active — no need to re-fetch and re-trigger effects
+    if (convIdFromUrl === activeConvId) return
 
-    // Fetch the conversation directly by ID — don't depend on the list being loaded
-    supabase
-      .from('conversation')
-      .select('*')
-      .eq('id', convIdFromUrl)
-      .single()
-      .then(({ data, error }) => {
-        if (error || !data) return
-        // Ensure it's in the sidebar list
+    api(`/api/conversations/${convIdFromUrl}`, { token })
+      .then((data) => {
+        if (!data) return
         setConversations((prev) => {
           if (prev.find(c => c.id === data.id)) return prev
           return [data, ...prev]
         })
-        // Select it — this triggers loadMessages
         setActiveConvId(convIdFromUrl)
-        // Set sessionStorage so FloatingAiChat knows a chat is active
         sessionStorage.setItem('chatspage_active_conv', convIdFromUrl)
       })
-  // Only run when the URL param or userId first becomes available
+      .catch(() => {})
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, userId])
-
-  /* ── Real-time: new conversations ──────────────────────────────────────── */
-
-  useEffect(() => {
-    if (!userId) return
-    const channel = supabase
-      .channel('conversations-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'conversation', filter: `user_id=eq.${userId}` },
-        () => { loadConversations() }
-      )
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [userId, loadConversations])
+  }, [searchParams, token])
 
   /* ── Load messages for active conversation ──────────────────────────────── */
 
   const fetchMessages = useCallback(async (convId) => {
-    if (!convId) return []
-    const { data, error } = await supabase
-      .from('message')
-      .select('*')
-      .eq('conversation_id', convId)
-      .order('created_at', { ascending: true })
-    if (!error && data) return data
-    return []
-  }, [])
+    if (!convId || !token) return []
+    try {
+      const data = await api(`/api/conversations/${convId}/messages`, { token })
+      return data || []
+    } catch {
+      return []
+    }
+  }, [token])
 
   const loadMessages = useCallback(async (convId) => {
     if (!convId) return
@@ -212,73 +194,36 @@ export default function ChatsPage() {
   }, [fetchMessages])
 
   useEffect(() => {
-    if (!activeConvId) { 
+    if (!activeConvId) {
       setMessages([])
+      setPendingAction(null)
       sessionStorage.removeItem('chatspage_active_conv')
-      return 
+      return
+    }
+    setIsComposing(false)
+    sessionStorage.setItem('chatspage_active_conv', activeConvId)
+    
+    // Restore pendingAction from sessionStorage if it exists
+    const savedAction = sessionStorage.getItem(`pending_action_${activeConvId}`)
+    if (savedAction) {
+      try {
+        setPendingAction(JSON.parse(savedAction))
+      } catch (e) {
+        setPendingAction(null)
+      }
+    } else {
+      setPendingAction(null)
     }
 
-    // Signal to FloatingAiChat that a chat is active
-    sessionStorage.setItem('chatspage_active_conv', activeConvId)
+    // Skip DB reload if we just set activeConvId from a fresh send() response
+    // (the optimistic UI is already correct and the confirmation card is live)
+    if (skipNextLoadRef.current) {
+      skipNextLoadRef.current = false
+      return
+    }
 
     loadMessages(activeConvId)
-
-    // Safety re-fetch after 2s — catches AI responses that arrived while we
-    // were still navigating to this page
-    const timer = setTimeout(async () => {
-      const data = await fetchMessages(activeConvId)
-      setMessages((prev) => {
-        const existingIds = new Set(prev.map((m) => m.id))
-        const newRows = data.filter((m) => !existingIds.has(m.id))
-        if (newRows.length === 0) return prev
-        return [...data].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
-      })
-    }, 2000)
-
-    return () => clearTimeout(timer)
-  }, [activeConvId, loadMessages, fetchMessages])
-
-  /* ── Real-time: new messages in active conversation ─────────────────────── */
-
-  useEffect(() => {
-    if (!activeConvId) return
-
-    const channel = supabase
-      .channel(`messages-rt-${activeConvId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'message',
-          filter: `conversation_id=eq.${activeConvId}`,
-        },
-        (payload) => {
-          setMessages((prev) => {
-            if (prev.find((m) => m.id === payload.new.id)) return prev
-            return [...prev, payload.new]
-          })
-        }
-      )
-      .subscribe((status) => {
-        // Once subscribed, re-fetch to catch anything inserted between page
-        // mount and the subscription becoming active
-        if (status === 'SUBSCRIBED') {
-          fetchMessages(activeConvId).then((data) => {
-            setMessages((prev) => {
-              const existingIds = new Set(prev.map((m) => m.id))
-              const newRows = data.filter((m) => !existingIds.has(m.id))
-              if (newRows.length === 0) return prev
-              return [...prev, ...newRows].sort(
-                (a, b) => new Date(a.created_at) - new Date(b.created_at)
-              )
-            })
-          })
-        }
-      })
-
-    return () => { supabase.removeChannel(channel) }
-  }, [activeConvId, fetchMessages])
+  }, [activeConvId, loadMessages])
 
   /* ── Auto-scroll ────────────────────────────────────────────────────────── */
 
@@ -287,54 +232,38 @@ export default function ChatsPage() {
     listRef.current.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages, isSending])
 
-  /* ── Create new conversation ────────────────────────────────────────────── */
-
-  async function createConversation() {
-    if (!userId) return null
-    const { data, error } = await supabase
-      .from('conversation')
-      .insert([{ user_id: userId }])
-      .select()
-      .single()
-    if (error) { console.error('Failed to create conversation:', error); return null }
-    if (!data) return null
-    setConversations((prev) => [data, ...prev])
-    return data.id
-  }
+  /* ── New chat ───────────────────────────────────────────────────────────── */
 
   async function handleNewChat() {
-    if (!userId) return
+    if (!token) return
     setActiveConvId(null)
     setMessages([])
     setPendingAction(null)
     setInput('')
-    // Signal to FloatingAiChat that no chat is active
+    setIsComposing(true)
     sessionStorage.removeItem('chatspage_active_conv')
-    const convId = await createConversation()
-    if (convId) {
-      setTimeout(() => {
-        setActiveConvId(convId)
-        // Signal to FloatingAiChat that a chat is now active
-        sessionStorage.setItem('chatspage_active_conv', convId)
-        setTimeout(() => inputRef.current?.focus(), 100)
-      }, 50)
-    }
+    // Don't pre-create conversation — it will be created by the backend
+    // when the first message is sent
+    setTimeout(() => inputRef.current?.focus(), 100)
   }
 
   /* ── Delete conversation ────────────────────────────────────────────────── */
 
   async function handleDeleteConversation(convId, e) {
     e.stopPropagation()
-    const { error } = await supabase.from('conversation').delete().eq('id', convId)
-    if (!error) {
+    try {
+      await api(`/api/conversations/${convId}`, { method: 'DELETE', token })
       setConversations((prev) => prev.filter((c) => c.id !== convId))
       if (activeConvId === convId) {
         setActiveConvId(null)
         setMessages([])
         setPendingAction(null)
-        // Signal to FloatingAiChat that no chat is active
+        sessionStorage.removeItem(`pending_action_${convId}`)
+        setIsComposing(false)
         sessionStorage.removeItem('chatspage_active_conv')
       }
+    } catch (e) {
+      console.error('Failed to delete conversation:', e)
     }
   }
 
@@ -348,7 +277,6 @@ export default function ChatsPage() {
       )
       formData.append('company_id', companyId.toString())
       formData.append('auth_token', freshToken)
-      // Use a fresh throw-away thread so it doesn't pollute the real conversation
       const res = await fetch(`${API_BASE}/api/agent/chat`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${freshToken}`, 'X-Company-Id': String(companyId) },
@@ -356,11 +284,14 @@ export default function ChatsPage() {
       })
       const data = await res.json()
       const raw = (data.response || '').trim()
-      // Strip surrounding quotes if the model added them, cap at 60 chars
       const title = raw.replace(/^["']|["']$/g, '').trim().slice(0, 60) || userText.slice(0, 50)
 
-      // Save to Supabase
-      await supabase.from('conversation').update({ title }).eq('id', convId)
+      // Save title via API
+      await api(`/api/conversations/${convId}`, {
+        method: 'PATCH',
+        body: { title },
+        token: freshToken,
+      })
 
       // Update sidebar immediately
       setConversations((prev) =>
@@ -374,54 +305,43 @@ export default function ChatsPage() {
   /* ── Send message ───────────────────────────────────────────────────────── */
 
   async function send(textOverride) {
+    if (isSendingRef.current) return
     const trimmed = (textOverride ?? input).trim()
     if (!trimmed && !selectedFile) return
     if (isSending) return
 
+    isSendingRef.current = true
     const freshToken = await getFreshToken()
-    if (!freshToken) return
-
-    // Ensure we have an active conversation
-    let convId = activeConvId
-    if (!convId) {
-      convId = await createConversation()
-      if (!convId) return
-      setActiveConvId(convId)
+    if (!freshToken) {
+      isSendingRef.current = false
+      return
     }
 
     const userText = trimmed || `[Uploaded: ${selectedFile?.name}]`
-
-    // Check if this is the first message (no messages yet = no title set)
     const isFirstMessage = messages.length === 0
 
     // Optimistic insert user message into UI
-    const tempId = `temp-${Date.now()}`
-    setMessages((prev) => [...prev, { id: tempId, role: 'user', content: userText, created_at: new Date().toISOString() }])
+    const tempUserId = `temp-u-${Date.now()}`
+    setMessages((prev) => [...prev, { id: tempUserId, role: 'user', content: userText, createdAt: new Date().toISOString() }])
     setInput('')
+    
+    // Clear the old card if it's already finished
+    if (pendingAction && (pendingAction.status === 'completed' || pendingAction.status === 'cancelled')) {
+      setPendingAction(null)
+      if (activeConvId) sessionStorage.removeItem(`pending_action_${activeConvId}`)
+    }
+    
     setIsSending(true)
+    setIsComposing(false)
 
     try {
-      // Persist user message to Supabase
-      const { data: userMsgData } = await supabase
-        .from('message')
-        .insert([{ conversation_id: convId, role: 'user', content: userText }])
-        .select()
-        .single()
-
-      // Replace temp user message with the real DB row (so real-time dedup works)
-      if (userMsgData) {
-        setMessages((prev) =>
-          prev.map((m) => (m.id === tempId ? { ...userMsgData } : m))
-        )
-      }
-
-      // Call AI agent
+      // Call AI agent — the backend saves both user + AI messages to SQL
       const formData = new FormData()
       formData.append('message', userText)
       formData.append('company_id', companyId.toString())
       formData.append('auth_token', freshToken)
-      const agentThreadId = threadMap[convId]
-      if (agentThreadId) formData.append('thread_id', agentThreadId)
+
+      if (activeConvId) formData.append('conversation_id', activeConvId)
       if (selectedFile) formData.append('file', selectedFile)
 
       const res = await fetch(`${API_BASE}/api/agent/chat`, {
@@ -430,49 +350,52 @@ export default function ChatsPage() {
         body: formData,
       })
       const data = await res.json()
+      const resolvedConvId = data.conversation_id || activeConvId
 
-      // Save agent thread_id mapping
-      if (data.thread_id) {
-        setThreadMap((prev) => ({ ...prev, [convId]: data.thread_id }))
+      // ── Save pendingAction to sessionStorage BEFORE setActiveConvId ──────
+      // This ensures the useEffect that fires on activeConvId change can
+      // immediately restore it from sessionStorage (avoiding the race condition
+      // where useEffect fires before we reach setPendingAction below).
+      if (data.requires_confirmation && data.proposed_action && resolvedConvId) {
+        sessionStorage.setItem(`pending_action_${resolvedConvId}`, JSON.stringify(data.proposed_action))
+      }
+
+      // If this was the first message, the backend created a conversation
+      if (data.conversation_id && !activeConvId) {
+        const newConvId = data.conversation_id
+        // Skip the DB message reload — our optimistic UI is already correct
+        skipNextLoadRef.current = true
+        setActiveConvId(newConvId)
+        sessionStorage.setItem('chatspage_active_conv', newConvId)
+        setSearchParams({ conversation: newConvId })
+
+        // Add to sidebar with the new threadId
+        setConversations((prev) => {
+          if (prev.find(c => c.id === newConvId)) return prev
+          return [{ id: newConvId, title: null, threadId: data.thread_id, createdAt: new Date().toISOString() }, ...prev]
+        })
+
+        // Generate title from first message
+        generateAndSaveTitle(newConvId, userText, freshToken)
+      } else if (isFirstMessage && activeConvId) {
+        generateAndSaveTitle(activeConvId, userText, freshToken)
       }
 
       const aiText = data.response || 'I processed your request.'
 
-      // Persist assistant message to Supabase and get back the row
-      const { data: aiMsgData, error: aiInsertError } = await supabase
-        .from('message')
-        .insert([{ conversation_id: convId, role: 'assistant', content: aiText }])
-        .select()
-        .single()
-
-      if (aiInsertError) {
-        console.error('Supabase insert error:', aiInsertError)
-        // Still show the message in UI even if DB insert fails
-        setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', content: aiText }])
-      } else if (aiMsgData) {
-        // Add directly to state — real-time may or may not fire, this guarantees it shows
-        setMessages((prev) => {
-          if (prev.find((m) => m.id === aiMsgData.id)) return prev
-          return [...prev, aiMsgData]
-        })
-      }
+      // Add AI response to UI
+      const tempAiId = `temp-a-${Date.now()}`
+      setMessages((prev) => [...prev, { id: tempAiId, role: 'assistant', content: aiText, createdAt: new Date().toISOString() }])
 
       if (data.requires_confirmation && data.proposed_action) {
         setPendingAction(data.proposed_action)
       }
-
-      // Generate title from first message — fire-and-forget, doesn't block UI
-      if (isFirstMessage) {
-        generateAndSaveTitle(convId, userText, freshToken)
-      }
     } catch (err) {
       const errText = `Sorry, an error occurred: ${err.message}`
-      // Show error in UI immediately
       setMessages((prev) => [...prev, { id: `e-${Date.now()}`, role: 'assistant', content: errText }])
-      // Also try to persist
-      await supabase.from('message').insert([{ conversation_id: convId, role: 'assistant', content: errText }])
     } finally {
       setIsSending(false)
+      isSendingRef.current = false
       setSelectedFile(null)
     }
   }
@@ -480,11 +403,14 @@ export default function ChatsPage() {
   /* ── Confirm / Cancel agent actions ────────────────────────────────────── */
 
   async function handleConfirm() {
-    const agentThreadId = threadMap[activeConvId]
+    const activeConv = conversations.find((c) => c.id === activeConvId)
+    const agentThreadId = activeConv?.threadId
     if (!agentThreadId) return
     const freshToken = await getFreshToken()
     setIsSending(true)
-    setPendingAction(null)
+    
+    setPendingAction(prev => ({ ...prev, status: 'completed' }))
+    
     try {
       const res = await fetch(`${API_BASE}/api/agent/confirm/${agentThreadId}`, {
         method: 'POST',
@@ -493,48 +419,32 @@ export default function ChatsPage() {
       })
       const data = await res.json()
       const text = data.response || 'Action confirmed.'
-      const { data: msgData } = await supabase
-        .from('message')
-        .insert([{ conversation_id: activeConvId, role: 'assistant', content: text }])
-        .select()
-        .single()
-      setMessages((prev) => {
-        const row = msgData || { id: `a-${Date.now()}`, role: 'assistant', content: text }
-        if (prev.find((m) => m.id === row.id)) return prev
-        return [...prev, row]
-      })
+      setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', content: text }])
+      // Clean sessionStorage so stale data doesn't interfere with the next invoice
+      if (activeConvId) sessionStorage.removeItem(`pending_action_${activeConvId}`)
     } catch (err) {
-      const text = `Error: ${err.message}`
-      setMessages((prev) => [...prev, { id: `e-${Date.now()}`, role: 'assistant', content: text }])
+      setMessages((prev) => [...prev, { id: `e-${Date.now()}`, role: 'assistant', content: `Error: ${err.message}` }])
     } finally { setIsSending(false) }
   }
 
   async function handleCancel() {
-    const agentThreadId = threadMap[activeConvId]
+    const activeConv = conversations.find((c) => c.id === activeConvId)
+    const agentThreadId = activeConv?.threadId
     if (!agentThreadId) return
     const freshToken = await getFreshToken()
     setIsSending(true)
-    setPendingAction(null)
+    setPendingAction(prev => ({ ...prev, status: 'cancelled' }))
     try {
       const res = await fetch(`${API_BASE}/api/agent/cancel/${agentThreadId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${freshToken}` },
       })
       const data = await res.json()
-      const text = data.response || 'Action cancelled.'
-      const { data: msgData } = await supabase
-        .from('message')
-        .insert([{ conversation_id: activeConvId, role: 'assistant', content: text }])
-        .select()
-        .single()
-      setMessages((prev) => {
-        const row = msgData || { id: `a-${Date.now()}`, role: 'assistant', content: text }
-        if (prev.find((m) => m.id === row.id)) return prev
-        return [...prev, row]
-      })
+      setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', content: data.response || 'Action cancelled.' }])
+      // Clean sessionStorage so stale data doesn't interfere with the next invoice
+      if (activeConvId) sessionStorage.removeItem(`pending_action_${activeConvId}`)
     } catch {
-      const text = 'Action cancelled.'
-      setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', content: text }])
+      setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', content: 'Action cancelled.' }])
     } finally { setIsSending(false) }
   }
 
@@ -545,10 +455,15 @@ export default function ChatsPage() {
       if (summary.includes('invoice') || type.includes('invoice')) navigate('/invoice/new', { state: { prefill: pendingAction } })
       else if (summary.includes('bill') || type.includes('bill')) navigate('/bill/new', { state: { prefill: pendingAction } })
       else navigate('/invoice/new', { state: { prefill: pendingAction } })
-      setPendingAction(null)
     } else {
-      setPendingAction(null)
-      setInput('I want to modify: ')
+      // Build a helpful pre-fill so the user knows exactly what to change
+      const a = pendingAction
+      let prefill = 'Please modify the invoice'
+      if (a) {
+        const itemsDesc = a.line_items?.map(li => `${li.description} x${li.quantity} @$${li.unit_price}`).join(', ') || ''
+        prefill = `Please modify the invoice: doc #${a.doc_number || ''}, customer: ${a.customer_name || 'unknown'}, items: ${itemsDesc}, total: $${(a.total_amount || 0).toFixed(2)}. Change: `
+      }
+      setInput(prefill)
       setTimeout(() => inputRef.current?.focus(), 50)
     }
   }
@@ -605,8 +520,7 @@ export default function ChatsPage() {
                   isActive={conv.id === activeConvId}
                   onClick={() => {
                     setActiveConvId(conv.id)
-                    setPendingAction(null)
-                    // Signal to FloatingAiChat that a chat is active
+                    // Do NOT clear pending action here; the useEffect will restore it.
                     sessionStorage.setItem('chatspage_active_conv', conv.id)
                   }}
                   onDelete={(e) => handleDeleteConversation(conv.id, e)}
@@ -618,7 +532,7 @@ export default function ChatsPage() {
 
         {/* ── Right Panel: Message Thread ───────────────────────────────── */}
         <div className="flex-1 flex flex-col bg-[#FAFBFC] min-w-0">
-          {!activeConvId ? (
+          {!activeConvId && !isComposing ? (
             /* Empty state */
             <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8">
               <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-[#0F766E]/10 to-[#14B8A6]/10 ring-1 ring-[#0F766E]/20">
@@ -652,7 +566,7 @@ export default function ChatsPage() {
                     {activeConv && (
                       <p className="text-[12px] text-[#6B7280] flex items-center gap-1">
                         <HiOutlineClock className="h-3.5 w-3.5" />
-                        {formatDate(activeConv.created_at)}
+                        {formatDate(activeConv.createdAt || activeConv.created_at)}
                       </p>
                     )}
                   </div>
@@ -837,7 +751,7 @@ function ConversationItem({ conv, isActive, onClick, onDelete }) {
         </p>
         <p className="text-[12px] text-[#9CA3AF] mt-0.5 flex items-center gap-1">
           <HiOutlineClock className="h-3 w-3" />
-          {timeAgo(conv.created_at)}
+          {timeAgo(conv.createdAt || conv.created_at)}
         </p>
       </div>
       {(hovered || isActive) && (

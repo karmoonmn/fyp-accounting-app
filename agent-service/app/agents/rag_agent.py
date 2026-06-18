@@ -17,7 +17,8 @@ from typing import Any
 from langchain_core.messages import AIMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from app.config import settings, get_api_key
+from app.config import settings
+from app.utils.llm import get_resilient_model
 from app.models.state import AgentState
 from app.tools.accounting_tools import RAG_TOOLS
 from app.tools.tool_executor import run_agent_with_tools
@@ -59,13 +60,8 @@ Today's date is {today}. Use this for default date calculations.
 """
 
 
-def _get_model() -> ChatGoogleGenerativeAI:
-    return ChatGoogleGenerativeAI(
-        model=settings.gemini_model,
-        google_api_key=get_api_key(),
-        temperature=0.1,
-        max_retries=0,
-    )
+def _get_model():
+    return get_resilient_model(temperature=0.1)
 
 
 async def rag_agent(state: AgentState) -> dict[str, Any]:

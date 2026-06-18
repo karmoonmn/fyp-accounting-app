@@ -47,6 +47,8 @@ def _get_anonymizer():
 
 
 # The entity types we care about in a financial context
+# NOTE: US_DRIVER_LICENSE is intentionally excluded — it false-positives on
+# 6-digit invoice/document numbers like "260618".
 _ENTITIES = [
     "CREDIT_CARD",
     "CRYPTO",
@@ -58,7 +60,6 @@ _ENTITIES = [
     "US_BANK_NUMBER",
     "US_SSN",
     "US_PASSPORT",
-    "US_DRIVER_LICENSE",
 ]
 
 
@@ -99,7 +100,13 @@ def mask_pii(text: str) -> tuple[str, dict[str, str]]:
 
 def unmask_pii(text: str, mapping: dict[str, str]) -> str:
     """Replace placeholder tokens with their original PII values."""
+    if not text:
+        return text
     result = text
     for placeholder, original in mapping.items():
+        # First try exact placeholder e.g. <US_DRIVER_LICENSE_abcd12>
         result = result.replace(placeholder, original)
+        # LLMs sometimes strip the angle brackets when outputting JSON or markdown
+        stripped = placeholder.strip("<>")
+        result = result.replace(stripped, original)
     return result

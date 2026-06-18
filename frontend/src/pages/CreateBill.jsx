@@ -197,6 +197,26 @@ export default function CreateBill() {
       const method = isEdit ? 'PUT' : 'POST'
 
       await api(url, { method, token, body: payload })
+      
+      // Mark any AI pending action as completed so it disables in the chat UI
+      try {
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const key = sessionStorage.key(i)
+          if (key && (key.startsWith('pending_action_') || key.startsWith('floating_pending_action_'))) {
+            const val = sessionStorage.getItem(key)
+            if (val) {
+              const action = JSON.parse(val)
+              if (action && !action.status) {
+                action.status = 'completed'
+                sessionStorage.setItem(key, JSON.stringify(action))
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Failed to update pending action status', e)
+      }
+      
       navigate('/bills')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create bill')

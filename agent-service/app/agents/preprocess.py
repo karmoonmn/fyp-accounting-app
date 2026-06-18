@@ -14,7 +14,8 @@ from typing import Any
 from langchain_core.messages import HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from app.config import settings, get_api_key
+from app.config import settings
+from app.utils.llm import get_resilient_model
 from app.models.state import AgentState
 from app.models.classification import DocumentExtractionResult
 from app.security.pii_masker import mask_pii
@@ -22,13 +23,8 @@ from app.security.pii_masker import mask_pii
 logger = logging.getLogger(__name__)
 
 
-def _get_model() -> ChatGoogleGenerativeAI:
-    return ChatGoogleGenerativeAI(
-        model=settings.gemini_model,
-        google_api_key=get_api_key(),
-        temperature=0.1,
-        max_retries=0,
-    )
+def _get_model():
+    return get_resilient_model(temperature=0.1)
 
 
 async def preprocess_node(state: AgentState) -> dict[str, Any]:
