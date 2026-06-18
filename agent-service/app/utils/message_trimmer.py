@@ -33,7 +33,8 @@ from langchain_core.messages import (
 )
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from app.config import settings, get_api_key
+from app.config import settings
+from app.utils.llm import get_resilient_model
 from app.utils.llm_retry import invoke_with_retry
 
 logger = logging.getLogger(__name__)
@@ -41,7 +42,7 @@ logger = logging.getLogger(__name__)
 # ── Configuration ─────────────────────────────────────────────────────────────
 
 # When the message count exceeds this, we summarize older messages
-MAX_RECENT_MESSAGES = 10
+MAX_RECENT_MESSAGES = 30
 
 # How many messages to keep as-is (the most recent ones)
 KEEP_LAST_N = 10
@@ -59,14 +60,8 @@ Be specific with numbers, names, and IDs. Do NOT include greetings or filler.
 """
 
 
-def _get_summary_model() -> ChatGoogleGenerativeAI:
-    """Use a lightweight model for summarization to save quota."""
-    return ChatGoogleGenerativeAI(
-        model=settings.gemini_model,
-        google_api_key=get_api_key(),
-        temperature=0.0,
-        max_retries=0,
-    )
+def _get_summary_model():
+    return get_resilient_model(temperature=0.0)
 
 
 def _is_tool_message(msg: BaseMessage) -> bool:

@@ -18,7 +18,8 @@ from langchain_core.messages import AIMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from app.clients import spring_boot_client
-from app.config import settings, get_api_key
+from app.config import settings
+from app.utils.llm import get_resilient_model
 from app.models.actions import ProposedAction, LineItemAction
 from app.models.state import AgentState
 from app.tools.accounting_tools import INVOICE_TOOLS
@@ -31,10 +32,14 @@ INVOICE_SYSTEM_PROMPT = """\
 You are an Invoice Management Agent for an accounting system.
 
 Your job is to help the user create, view, update, or delete invoices.
+YOU ARE FULLY CAPABLE OF CREATING, UPDATING, AND DELETING INVOICES.
+When you are ready to create an invoice, you MUST use the create_invoice_action tool.
 
 You have access to tools to look up customers, invoices, and accounts.
 USE the tools to resolve customer names to IDs and look up invoice details
 rather than asking the user for IDs.
+
+CRITICAL INSTRUCTION: To create an invoice, you MUST call the `create_invoice_action` tool with the extracted data.
 
 When the user wants to CREATE an invoice, extract:
 - docNumber (required, invoice number — accept ANY format the user provides, e.g. "260607", "INV-001", "ABC123" are ALL valid. Do NOT reject or question the format.)
@@ -43,6 +48,8 @@ When the user wants to CREATE an invoice, extract:
 - customerId or customerName (don't ask user for customerId or customerName if not provided, if provided use search_customers tool to resolve names to IDs) 
 - lines: list of {description, quantity, unitPrice}
 
+you can create an invoice without a customer ID.
+
 When the user wants to VIEW invoices, use the list_all_invoices or
 get_invoice_details tools to fetch the data, then present it clearly.
 
@@ -50,23 +57,21 @@ When the user wants to DELETE, confirm the invoice ID.
 
 If extracted_data from a document upload is available, use it directly.
 
-Once you have gathered enough information, respond as a JSON object with:
+Once you have gathered enough information to create an invoice, CALL the `create_invoice_action` tool.
+If the user asks you to modify or update an invoice that you just proposed but hasn't been confirmed yet, you MUST CALL the `create_invoice_action` tool AGAIN with the updated data. DO NOT just reply with text.
+
+For update or delete operations on EXISTING invoices, output a JSON block like:
 {
-  "action": "create" | "list" | "get" | "update" | "delete",
-  "data": { ... extracted fields ... }
+  "action": "update" | "delete",
+  "data": { ... }
 }
 
 If information is still missing after using tools, ask the user for it.
 """
 
 
-def _get_model() -> ChatGoogleGenerativeAI:
-    return ChatGoogleGenerativeAI(
-        model=settings.gemini_model,
-        google_api_key=get_api_key(),
-        temperature=0.1,
-        max_retries=0,
-    )
+def _get_model():
+    return get_resilient_model(temperature=0.1)
 
 
 async def invoice_agent(state: AgentState) -> dict[str, Any]:
@@ -96,6 +101,8 @@ async def invoice_agent(state: AgentState) -> dict[str, Any]:
             SystemMessage(content=f"Extracted document data:\n{json.dumps(extracted, indent=2)}")
         )
 
+    original_msg_count = len(messages)
+
     # Run the tool-calling loop — the model may call search_customers,
     # list_all_invoices, etc. before producing a final response
     content, messages = await run_agent_with_tools(
@@ -112,9 +119,12 @@ async def invoice_agent(state: AgentState) -> dict[str, Any]:
         parsed = _extract_json(content)
     except Exception:
         # Model responded in natural language (probably asking for more info)
+        new_msgs = messages[original_msg_count:]
+        if not new_msgs:
+            new_msgs = [AIMessage(content=content)]
         return {
             "final_response": content,
-            "messages": [AIMessage(content=content)],
+            "messages": new_msgs,
             "pending_intent": "INVOICE_PROCESS",
             "pending_context": {"awaiting": "user_details"},
         }
@@ -126,9 +136,10 @@ async def invoice_agent(state: AgentState) -> dict[str, Any]:
     if action == "list":
         invoices = await spring_boot_client.list_invoices(token, company_id)
         summary = _format_invoice_list(invoices)
+        new_msgs = messages[original_msg_count:] + [AIMessage(content=summary)]
         return {
             "final_response": summary,
-            "messages": [AIMessage(content=summary)],
+            "messages": new_msgs,
             "pending_intent": None,
             "pending_context": None,
         }
@@ -140,9 +151,10 @@ async def invoice_agent(state: AgentState) -> dict[str, Any]:
             return {"final_response": msg, "messages": [AIMessage(content=msg)]}
         invoice = await spring_boot_client.get_invoice(int(inv_id), token, company_id)
         summary = f"**Invoice #{invoice.get('docNumber', inv_id)}**\n" + json.dumps(invoice, indent=2, default=str)
+        new_msgs = messages[original_msg_count:] + [AIMessage(content=summary)]
         return {
             "final_response": summary,
-            "messages": [AIMessage(content=summary)],
+            "messages": new_msgs,
         }
 
     # ── Write operations — build ProposedAction ───────────────
@@ -199,11 +211,13 @@ async def invoice_agent(state: AgentState) -> dict[str, Any]:
             f"Please click **Confirm** to post it to your books."
         )
 
+        new_msgs = messages[original_msg_count:] + [AIMessage(content=confirmation_msg)]
+
         return {
             "proposed_action": proposed.model_dump(),
             "confirmation_status": "pending",
             "final_response": confirmation_msg,
-            "messages": [AIMessage(content=confirmation_msg)],
+            "messages": new_msgs,
             "pending_intent": None,
             "pending_context": None,
         }
@@ -215,17 +229,21 @@ async def invoice_agent(state: AgentState) -> dict[str, Any]:
             summary=f"Delete invoice #{inv_id}",
             target_id=int(inv_id) if inv_id else None,
         )
+        new_msgs = messages[original_msg_count:] + [AIMessage(content=f"Delete invoice #{inv_id}?")]
         return {
             "proposed_action": proposed.model_dump(),
             "confirmation_status": "pending",
             "final_response": f"Are you sure you want to delete invoice #{inv_id}? Click **Confirm** to proceed.",
-            "messages": [AIMessage(content=f"Delete invoice #{inv_id}?")],
+            "messages": new_msgs,
         }
 
     # Fallback
+    new_msgs = messages[original_msg_count:]
+    if not new_msgs:
+        new_msgs = [AIMessage(content=content)]
     return {
         "final_response": content,
-        "messages": [AIMessage(content=content)],
+        "messages": new_msgs,
     }
 
 

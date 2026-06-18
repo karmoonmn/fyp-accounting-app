@@ -30,9 +30,16 @@ async def response_checker(state: AgentState) -> dict[str, Any]:
     metadata = state.get("response_metadata") or {}
     pii_mapping = metadata.get("pii_mapping", {})
 
+    proposed_action = state.get("proposed_action")
+
     # ── Unmask PII for the user ───────────────────────────────
     if pii_mapping:
         response = unmask_pii(response, pii_mapping)
+        if proposed_action:
+            import json
+            proposed_str = json.dumps(proposed_action)
+            unmasked_proposed_str = unmask_pii(proposed_str, pii_mapping)
+            proposed_action = json.loads(unmasked_proposed_str)
 
     # ── Check for leaked placeholder tokens ───────────────────
     import re
@@ -52,8 +59,12 @@ async def response_checker(state: AgentState) -> dict[str, Any]:
     # ── Clean up metadata (remove PII mapping from response) ──
     clean_metadata = {k: v for k, v in metadata.items() if k != "pii_mapping"}
 
-    return {
+    updates = {
         "final_response": response,
         "response_metadata": clean_metadata,
         "messages": [AIMessage(content=response)],
     }
+    if proposed_action:
+        updates["proposed_action"] = proposed_action
+
+    return updates

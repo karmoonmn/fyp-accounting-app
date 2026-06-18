@@ -13,7 +13,8 @@ from typing import Any
 from langchain_core.messages import SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from app.config import settings, get_api_key
+from app.config import settings
+from app.utils.llm import get_resilient_model
 from app.models.classification import ClassificationResult
 from app.models.state import AgentState
 from app.utils.message_trimmer import prepare_messages_for_llm
@@ -45,13 +46,8 @@ Be decisive. Always pick the most specific category.
 """
 
 
-def _get_model() -> ChatGoogleGenerativeAI:
-    return ChatGoogleGenerativeAI(
-        model=settings.gemini_model,
-        google_api_key=get_api_key(),
-        temperature=0.0,
-        max_retries=0,  # Disable SDK retry — our invoke_with_retry handles it
-    )
+def _get_model():
+    return get_resilient_model(temperature=0.1)
 
 
 async def classification_agent(state: AgentState) -> dict[str, Any]:

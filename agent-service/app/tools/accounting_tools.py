@@ -144,6 +144,61 @@ async def get_accounts_payable_aging() -> str:
     raise NotImplementedError("Must be called via tool_executor with injected credentials")
 
 
+# ── Dummy Write Tools (To satisfy Gemini's tool scope) ────────────────────────
+
+
+from typing import Optional, List
+from pydantic import BaseModel, Field
+
+class LineItemArgs(BaseModel):
+    description: str
+    quantity: float = 1.0
+    unitPrice: float = 0.0
+    amount: float = 0.0
+    accountId: Optional[int] = Field(None, description="The account ID (e.g. Expense account) for this line item.")
+    accountName: Optional[str] = Field(None, description="The name of the account chosen.")
+
+class CreateInvoiceArgs(BaseModel):
+    docNumber: str = Field(description="The invoice number.")
+    txnDate: Optional[str] = Field(None, description="Transaction date YYYY-MM-DD")
+    dueDate: Optional[str] = Field(None, description="Due date YYYY-MM-DD")
+    customerId: Optional[int] = Field(None, description="The customer ID if known.")
+    customerName: Optional[str] = Field(None, description="MUST provide the raw customer name if customerId is missing or unknown.")
+    lines: List[LineItemArgs] = Field(default_factory=list, description="List of items.")
+
+@tool(args_schema=CreateInvoiceArgs)
+async def create_invoice_action(
+    docNumber: str,
+    txnDate: Optional[str] = None,
+    dueDate: Optional[str] = None,
+    customerId: Optional[int] = None,
+    customerName: Optional[str] = None,
+    lines: Optional[list] = None
+) -> str:
+    """USE THIS TOOL TO CREATE AN INVOICE."""
+    return "Intercepted by tool_executor"
+
+
+class CreateBillArgs(BaseModel):
+    docNumber: str = Field(description="The bill/reference number.")
+    txnDate: Optional[str] = Field(None, description="Transaction date YYYY-MM-DD")
+    dueDate: Optional[str] = Field(None, description="Due date YYYY-MM-DD")
+    supplierId: Optional[int] = Field(None, description="The supplier ID if known.")
+    supplierName: Optional[str] = Field(None, description="MUST provide the raw supplier name if supplierId is missing or unknown.")
+    lines: List[LineItemArgs] = Field(default_factory=list, description="List of items with description, amount, and accountId.")
+
+@tool(args_schema=CreateBillArgs)
+async def create_bill_action(
+    docNumber: str,
+    txnDate: Optional[str] = None,
+    dueDate: Optional[str] = None,
+    supplierId: Optional[int] = None,
+    supplierName: Optional[str] = None,
+    lines: Optional[list] = None
+) -> str:
+    """USE THIS TOOL TO CREATE A BILL OR EXPENSE."""
+    return "Intercepted by tool_executor"
+
 # ── Tool Registry ────────────────────────────────────────────────────────────
 
 
@@ -154,6 +209,7 @@ INVOICE_TOOLS = [
     list_all_invoices,
     get_invoice_details,
     get_chart_of_accounts,
+    create_invoice_action,
 ]
 
 EXPENSE_TOOLS = [
@@ -162,6 +218,7 @@ EXPENSE_TOOLS = [
     list_all_bills,
     get_bill_details,
     get_chart_of_accounts,
+    create_bill_action,
 ]
 
 RAG_TOOLS = [

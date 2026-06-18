@@ -18,7 +18,8 @@ from typing import Any
 from langchain_core.messages import SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from app.config import settings, get_api_key
+from app.config import settings
+from app.utils.llm import get_resilient_model
 from app.models.state import AgentState
 from app.utils.message_trimmer import prepare_messages_for_llm
 from app.utils.llm_retry import invoke_with_retry
@@ -45,13 +46,8 @@ Respond with EXACTLY one word: CONTINUE or NEW_INTENT
 """
 
 
-def _get_model() -> ChatGoogleGenerativeAI:
-    return ChatGoogleGenerativeAI(
-        model=settings.gemini_model,
-        google_api_key=get_api_key(),
-        temperature=0.0,
-        max_retries=0,
-    )
+def _get_model():
+    return get_resilient_model(temperature=0.1)
 
 
 async def context_router(state: AgentState) -> dict[str, Any]:
