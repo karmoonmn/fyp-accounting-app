@@ -455,7 +455,7 @@ function LoginPage({ onSwitch }) {
 
       {!isForgot && (
         <p style={{ textAlign: 'center', fontSize: 13, color: C.muted }}>
-          New to GlobalTech?{' '}
+          New to FinFlow AI?{' '}
           <button
             type="button"
             onClick={onSwitch}

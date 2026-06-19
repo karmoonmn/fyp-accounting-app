@@ -72,6 +72,7 @@ export default function CreateInvoice() {
         if (!cancelled) {
           setCustomers(customersData || [])
           if (invoiceData) {
+            console.log('Invoice Data:', invoiceData);
             setDocNumber(invoiceData.docNumber || '')
             setTxnDate(invoiceData.txnDate || todayISO())
             setCustomerId(invoiceData.customer ? invoiceData.customer.id.toString() : '')
@@ -81,6 +82,7 @@ export default function CreateInvoice() {
             if (invoiceData.lines && invoiceData.lines.length > 0) {
               setLines(
                 invoiceData.lines.map((l) => ({
+                  id: l.id,
                   lineNum: l.lineNum,
                   description: l.description || '',
                   quantity: l.quantity != null ? l.quantity.toString() : '1',
@@ -171,6 +173,7 @@ export default function CreateInvoice() {
           throw new Error(`Line ${row.lineNum || i + 1}: invalid quantity or unit price`)
         }
         return {
+          id: row.id,
           lineNum: i + 1,
           description: row.description || `Line ${i + 1}`,
           quantity,
@@ -255,7 +258,7 @@ export default function CreateInvoice() {
         const quantity = Number.parseFloat(row.quantity)
         const unitPrice = Number.parseFloat(row.unitPrice)
         if (!Number.isFinite(quantity) || !Number.isFinite(unitPrice)) throw new Error(`Line ${row.lineNum || i + 1}: invalid quantity or unit price`)
-        return { lineNum: i + 1, description: row.description || `Line ${i + 1}`, quantity, unitPrice }
+        return { id: row.id, lineNum: i + 1, description: row.description || `Line ${i + 1}`, quantity, unitPrice }
       })
       if (parsedLines.length === 0) throw new Error('Cannot create invoice without any valid line items (price must not be 0)')
       const totalAmount = parsedLines.reduce((sum, row) => sum + (row.quantity * row.unitPrice), 0)

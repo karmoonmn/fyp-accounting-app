@@ -93,6 +93,7 @@ export default function CreateBill() {
             setSuppliers(supps || [])
 
             if (billData) {
+              console.log('Bill Data:', billData);
               setDocNumber(billData.docNumber || '')
               setTxnDate(billData.txnDate || todayISO())
               setDueDate(billData.dueDate || '')
@@ -101,6 +102,7 @@ export default function CreateBill() {
               if (billData.lines && billData.lines.length > 0) {
                 setLines(
                   billData.lines.map((l) => ({
+                    id: l.id,
                     lineNum: l.lineNum,
                     accountId: l.account ? l.account.id.toString() : '',
                     description: l.description || '',
@@ -182,7 +184,9 @@ export default function CreateBill() {
         memo,
         lines: lines
           .filter(l => l.accountId && Number.parseFloat(l.amount) > 0)
-          .map(l => ({
+          .map((l, i) => ({
+            id: l.id,
+            lineNum: i + 1,
             accountId: parseInt(l.accountId, 10),
             description: l.description,
             amount: Number.parseFloat(l.amount),
@@ -197,7 +201,7 @@ export default function CreateBill() {
       const method = isEdit ? 'PUT' : 'POST'
 
       await api(url, { method, token, body: payload })
-      
+
       // Mark any AI pending action as completed so it disables in the chat UI
       try {
         for (let i = 0; i < sessionStorage.length; i++) {
@@ -216,7 +220,7 @@ export default function CreateBill() {
       } catch (e) {
         console.error('Failed to update pending action status', e)
       }
-      
+
       navigate('/bills')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create bill')
@@ -244,7 +248,9 @@ export default function CreateBill() {
         memo,
         lines: lines
           .filter(l => l.accountId && Number.parseFloat(l.amount) > 0)
-          .map(l => ({
+          .map((l, i) => ({
+            id: l.id,
+            lineNum: i + 1,
             accountId: parseInt(l.accountId, 10),
             description: l.description,
             amount: Number.parseFloat(l.amount),
