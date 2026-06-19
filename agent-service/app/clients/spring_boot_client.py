@@ -142,12 +142,26 @@ async def list_customers(token: str, company_id: int) -> list[dict]:
     return r.json()
 
 
+async def create_customer(payload: dict, token: str, company_id: int) -> dict:
+    client = _get_client()
+    r = await client.post("/customer", json=payload, headers=_headers(token, company_id))
+    r.raise_for_status()
+    return r.json()
+
+
 # ── Supplier Operations ──────────────────────────────────────────────────────
 
 
 async def list_suppliers(token: str, company_id: int) -> list[dict]:
     client = _get_client()
     r = await client.get("/supplier", headers=_headers(token, company_id))
+    r.raise_for_status()
+    return r.json()
+
+
+async def create_supplier(payload: dict, token: str, company_id: int) -> dict:
+    client = _get_client()
+    r = await client.post("/supplier", json=payload, headers=_headers(token, company_id))
     r.raise_for_status()
     return r.json()
 

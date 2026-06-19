@@ -187,6 +187,16 @@ async def invoice_agent(state: AgentState) -> dict[str, Any]:
             except Exception:
                 pass  # Best-effort — the user can confirm/modify later
 
+        if customer_id and not customer_name:
+            try:
+                customers = await spring_boot_client.list_customers(token, company_id)
+                for c in customers:
+                    if str(c["id"]) == str(customer_id):
+                        customer_name = c.get("name", "")
+                        break
+            except Exception:
+                pass
+
         proposed = ProposedAction(
             action_type="CREATE_INVOICE",
             summary=f"Create invoice {data.get('docNumber', 'NEW')} for {customer_name or 'unknown customer'} — ${total:,.2f}",

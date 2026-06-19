@@ -41,6 +41,12 @@ async def list_all_customers() -> str:
     raise NotImplementedError("Must be called via tool_executor with injected credentials")
 
 
+@tool
+async def create_customer(name: str, email: str = "", phone: str = "", address: str = "") -> str:
+    """Create a new customer in the system. Use this when the user asks to create an invoice for a customer that does not exist yet. Returns the newly created customer object including its ID. You should always use this to create a customer if they don't exist before proposing the invoice. CRITICAL: Only the name is required. Do NOT ask the user for their address, email, or phone number before creating them—just leave those fields blank."""
+    raise NotImplementedError("Must be called via tool_executor with injected credentials")
+
+
 # ── Supplier Tools ────────────────────────────────────────────────────────────
 
 
@@ -56,6 +62,12 @@ async def search_suppliers(query: str) -> str:
 async def list_all_suppliers() -> str:
     """List all suppliers in the system. Returns a JSON list with
     supplier IDs and names."""
+    raise NotImplementedError("Must be called via tool_executor with injected credentials")
+
+
+@tool
+async def create_supplier(name: str, email: str = "", phone: str = "", address: str = "") -> str:
+    """Create a new supplier/vendor in the system. Use this when the user asks to create a bill for a supplier that does not exist yet. Returns the newly created supplier object including its ID. You should always use this to create a supplier if they don't exist before proposing the bill. CRITICAL: Only the name is required. Do NOT ask the user for their address, email, or phone number before creating them—just leave those fields blank."""
     raise NotImplementedError("Must be called via tool_executor with injected credentials")
 
 
@@ -206,6 +218,7 @@ async def create_bill_action(
 INVOICE_TOOLS = [
     search_customers,
     list_all_customers,
+    create_customer,
     list_all_invoices,
     get_invoice_details,
     get_chart_of_accounts,
@@ -215,6 +228,7 @@ INVOICE_TOOLS = [
 EXPENSE_TOOLS = [
     search_suppliers,
     list_all_suppliers,
+    create_supplier,
     list_all_bills,
     get_bill_details,
     get_chart_of_accounts,

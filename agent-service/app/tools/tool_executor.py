@@ -71,6 +71,15 @@ async def _execute_tool(
 
         elif tool_name == "list_all_customers":
             result = await spring_boot_client.list_customers(token, company_id)
+            
+        elif tool_name == "create_customer":
+            payload = {
+                "name": tool_args.get("name"),
+                "email": tool_args.get("email", ""),
+                "phoneNum": tool_args.get("phone", ""),
+                "addr": tool_args.get("address", "")
+            }
+            result = await spring_boot_client.create_customer(payload, token, company_id)
 
         # ── Supplier tools ────────────────────────────────────
         elif tool_name == "search_suppliers":
@@ -80,6 +89,15 @@ async def _execute_tool(
 
         elif tool_name == "list_all_suppliers":
             result = await spring_boot_client.list_suppliers(token, company_id)
+            
+        elif tool_name == "create_supplier":
+            payload = {
+                "name": tool_args.get("name"),
+                "email": tool_args.get("email", ""),
+                "phoneNum": tool_args.get("phone", ""),
+                "addr": tool_args.get("address", "")
+            }
+            result = await spring_boot_client.create_supplier(payload, token, company_id)
 
         # ── Invoice tools ─────────────────────────────────────
         elif tool_name == "list_all_invoices":

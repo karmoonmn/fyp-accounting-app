@@ -210,6 +210,16 @@ async def expense_agent(state: AgentState) -> dict[str, Any]:
             except Exception:
                 pass
 
+        if supplier_id and not supplier_name:
+            try:
+                suppliers = await spring_boot_client.list_suppliers(token, company_id)
+                for s in suppliers:
+                    if str(s["id"]) == str(supplier_id):
+                        supplier_name = s.get("name", "")
+                        break
+            except Exception:
+                pass
+
         proposed = ProposedAction(
             action_type="CREATE_BILL",
             summary=f"Create bill {data.get('docNumber', 'NEW')} from {supplier_name or 'unknown supplier'} — ${total:,.2f}",
