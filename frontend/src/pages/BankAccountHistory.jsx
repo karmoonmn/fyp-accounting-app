@@ -225,7 +225,7 @@ export default function BankAccountHistory() {
                 <tr className="border-b border-[#E5E7EB] bg-[#FAFAFA] text-[11px] font-bold uppercase tracking-wide text-[#6B7280]">
                   <th className="px-5 py-3">Date</th>
                   <th className="px-3 py-3">Ref No.</th>
-                  <th className="px-3 py-3 min-w-[200px]">Payee / Account</th>
+                  <th className="px-3 py-3 min-w-[200px]">Type</th>
                   <th className="px-3 py-3">Memo</th>
                   <th className="px-3 py-3 text-right">
                     <span className="text-red-500">Payment</span>
