@@ -195,7 +195,14 @@ export default function Settings() {
       setPasswordState({ newPassword: '', confirmPassword: '' })
       setShowPasswordForm(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update password. You may need to re-authenticate.')
+      const firebaseErrors = {
+        'auth/invalid-credential': 'Invalid current password',
+        'auth/requires-recent-login': 'Please log out and log in again to change your password',
+        'auth/weak-password': 'Password must be at least 6 characters',
+        'auth/network-request-failed': 'Network error. Please check your connection',
+        'auth/too-many-requests': 'Too many attempts. Please try again later',
+      }
+      setError(firebaseErrors[err.code] || (err instanceof Error ? err.message : 'Failed to update password'))
     } finally {
       setBusy(false)
     }

@@ -19,6 +19,26 @@ import {
 import { auth } from '../firebase'
 import { api, setGlobalCompanyId } from '../api'
 
+function mapFirebaseErrorToMessage(code, defaultMsg = 'An error occurred') {
+  const errors = {
+    'auth/invalid-credential': 'Invalid email or password',
+    'auth/user-not-found': 'No account found with this email',
+    'auth/wrong-password': 'Incorrect password',
+    'auth/email-already-in-use': 'This email is already registered',
+    'auth/weak-password': 'Password must be at least 6 characters',
+    'auth/invalid-email': 'Invalid email format',
+    'auth/too-many-requests': 'Too many failed attempts. Please try again later',
+    'auth/operation-not-allowed': 'Email/password sign-in is disabled',
+    'auth/network-request-failed': 'Network error. Please check your connection',
+    'auth/invalid-api-key': 'Invalid configuration',
+    'auth/credential-already-in-use': 'This account is already linked to another provider',
+    'auth/email-already-exists': 'An account with this email already exists',
+    'auth/popup-closed-by-user': 'Authentication cancelled',
+    'auth/unauthorized-domain': 'Domain not authorized for sign-in',
+  }
+  return errors[code] || defaultMsg
+}
+
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
@@ -78,12 +98,20 @@ export function AuthProvider({ children }) {
       auth,
       remember ? browserLocalPersistence : browserSessionPersistence,
     )
-    await signInWithEmailAndPassword(auth, email.trim(), password)
+    try {
+      await signInWithEmailAndPassword(auth, email.trim(), password)
+    } catch (err) {
+      throw new Error(mapFirebaseErrorToMessage(err.code, err.message))
+    }
   }, [])
 
   const signUpFirebase = useCallback(async (email, password) => {
     setMeError(null)
-    await createUserWithEmailAndPassword(auth, email.trim(), password)
+    try {
+      await createUserWithEmailAndPassword(auth, email.trim(), password)
+    } catch (err) {
+      throw new Error(mapFirebaseErrorToMessage(err.code, err.message))
+    }
   }, [])
 
   const signOut = useCallback(async () => {
@@ -93,7 +121,11 @@ export function AuthProvider({ children }) {
 
   const resetPassword = useCallback(async (email) => {
     setMeError(null)
-    await sendPasswordResetEmail(auth, email.trim())
+    try {
+      await sendPasswordResetEmail(auth, email.trim())
+    } catch (err) {
+      throw new Error(mapFirebaseErrorToMessage(err.code, err.message))
+    }
   }, [])
 
   const getFreshToken = useCallback(async () => {

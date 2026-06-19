@@ -627,36 +627,36 @@ export default function GlobalTechAuth({ initialPage = 'login' }) {
         }}
       />
 
-      <div className="gt-notif-bar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 7, height: 7, background: C.teal, borderRadius: '50%' }} />
-          <span style={{ fontSize: 12.5, color: C.muted, fontWeight: 300 }}>
-            🎉 <strong style={{ color: C.text, fontWeight: 500 }}>New:</strong> AI Financial Insights now available
-            for all accounts
-          </span>
-        </div>
-        <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
-          <button type="button" style={{ fontSize: 12, color: C.muted, textDecoration: 'none', background: 'transparent', border: 'none', cursor: 'pointer' }}>
-            Learn more
-          </button>
-          <button
-            type="button"
-            style={{
-              fontSize: 12,
-              background: C.teal,
-              color: 'white',
-              padding: '5px 13px',
-              borderRadius: 7,
-              fontWeight: 500,
-              textDecoration: 'none',
-              border: 'none',
-              cursor: 'pointer',
-            }}
-          >
-            Try it free
-          </button>
-        </div>
-      </div>
+      {/*<div className="gt-notif-bar">*/}
+      {/*  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>*/}
+      {/*    <div style={{ width: 7, height: 7, background: C.teal, borderRadius: '50%' }} />*/}
+      {/*    <span style={{ fontSize: 12.5, color: C.muted, fontWeight: 300 }}>*/}
+      {/*      🎉 <strong style={{ color: C.text, fontWeight: 500 }}>New:</strong> AI Financial Insights now available*/}
+      {/*      for all accounts*/}
+      {/*    </span>*/}
+      {/*  </div>*/}
+      {/*  <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>*/}
+      {/*    <button type="button" style={{ fontSize: 12, color: C.muted, textDecoration: 'none', background: 'transparent', border: 'none', cursor: 'pointer' }}>*/}
+      {/*      Learn more*/}
+      {/*    </button>*/}
+      {/*    <button*/}
+      {/*      type="button"*/}
+      {/*      style={{*/}
+      {/*        fontSize: 12,*/}
+      {/*        background: C.teal,*/}
+      {/*        color: 'white',*/}
+      {/*        padding: '5px 13px',*/}
+      {/*        borderRadius: 7,*/}
+      {/*        fontWeight: 500,*/}
+      {/*        textDecoration: 'none',*/}
+      {/*        border: 'none',*/}
+      {/*        cursor: 'pointer',*/}
+      {/*      }}*/}
+      {/*    >*/}
+      {/*      Try it free*/}
+      {/*    </button>*/}
+      {/*  </div>*/}
+      {/*</div>*/}
 
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', minHeight: '100vh', paddingTop: 46 }}>
         <LeftPanel />
