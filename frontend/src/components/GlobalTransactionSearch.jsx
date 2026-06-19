@@ -43,40 +43,56 @@ export default function GlobalTransactionSearch() {
         })
         if (!cancelled) {
           const content = data?.content || []
-          const mapped = content.map((t) => {
-            let type = 'Unknown'
-            let counterparty = '—'
-            let amount = 0
-            let route = ''
+          const mapped = content
+            .filter((t) => {
+              if (t.docNumber && (
+                t.docNumber.startsWith('JE-BILL-') ||
+                t.docNumber.startsWith('JE-INVOICE-') ||
+                t.docNumber.startsWith('JE-PAY-') ||
+                t.docNumber.startsWith('JE-RCV-')
+              )) {
+                return false
+              }
+              return true
+            })
+            .map((t) => {
+              let type = 'Unknown'
+              let counterparty = '—'
+              let amount = 0
+              let route = ''
 
-            if (t.customer) {
-              type = 'Invoice'
-              counterparty = t.customer.name
-              amount = t.totalAmt
-              route = `/invoice/edit/${t.id}`
-            } else if (t.supplier) {
-              type = 'Bill'
-              counterparty = t.supplier.name
-              amount = t.totalAmt
-              route = `/bill/edit/${t.id}`
-            } else if (t.depositTo || t.paymentType) {
-              type = 'Payment'
-              counterparty = t.depositTo || 'Bank'
-              amount = t.totalAmount
-              route = `/payments` // No specific payment edit page yet
-            }
+              if (t.customer) {
+                type = 'Invoice'
+                counterparty = t.customer.name
+                amount = t.totalAmt
+                route = `/invoice/edit/${t.id}`
+              } else if (t.supplier) {
+                type = 'Bill'
+                counterparty = t.supplier.name
+                amount = t.totalAmt
+                route = `/bill/edit/${t.id}`
+              } else if (t.depositTo || t.paymentType) {
+                type = 'Payment'
+                counterparty = t.depositTo || 'Bank'
+                amount = t.totalAmount
+                route = `/payments` // No specific payment edit page yet
+              } else if (t.totalDebit !== undefined) {
+                type = 'Journal Entry'
+                counterparty = '—'
+                amount = t.totalDebit
+              }
 
-            return {
-              id: t.id,
-              no: t.docNumber || `TXN-${t.id}`,
-              source: 'Accounting',
-              type,
-              counterparty,
-              date: t.txnDate,
-              amount,
-              route,
-            }
-          })
+              return {
+                id: t.id,
+                no: t.docNumber || `TXN-${t.id}`,
+                source: 'Accounting',
+                type,
+                counterparty,
+                date: t.txnDate,
+                amount,
+                route,
+              }
+            })
           setResults(mapped)
           setActive(0)
         }
