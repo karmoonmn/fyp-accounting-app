@@ -43,7 +43,7 @@ async def list_all_customers() -> str:
 
 @tool
 async def create_customer(name: str, email: str = "", phone: str = "", address: str = "") -> str:
-    """Create a new customer in the system. Use this when the user asks to create an invoice for a customer that does not exist yet. Returns the newly created customer object including its ID. You should always use this to create a customer if they don't exist before proposing the invoice. CRITICAL: Only the name is required. Do NOT ask the user for their address, email, or phone number before creating them—just leave those fields blank."""
+    """Create a new customer in the system. Use this when the user asks to create an invoice for a customer that does not exist yet. Returns the newly created customer object including its ID. You should always use this to create a customer if they don't exist before proposing the invoice. CRITICAL: Do NOT ask the user for permission to create the customer. Do NOT ask for their address, email, or phone number—just leave those optional fields blank and create the customer autonomously."""
     raise NotImplementedError("Must be called via tool_executor with injected credentials")
 
 
@@ -67,7 +67,7 @@ async def list_all_suppliers() -> str:
 
 @tool
 async def create_supplier(name: str, email: str = "", phone: str = "", address: str = "") -> str:
-    """Create a new supplier/vendor in the system. Use this when the user asks to create a bill for a supplier that does not exist yet. Returns the newly created supplier object including its ID. You should always use this to create a supplier if they don't exist before proposing the bill. CRITICAL: Only the name is required. Do NOT ask the user for their address, email, or phone number before creating them—just leave those fields blank."""
+    """Create a new supplier/vendor in the system. Use this when the user asks to create a bill for a supplier that does not exist yet. Returns the newly created supplier object including its ID. You should always use this to create a supplier if they don't exist before proposing the bill. CRITICAL: Do NOT ask the user for permission to create the supplier. Do NOT ask for their address, email, or phone number—just leave those optional fields blank and create the supplier autonomously."""
     raise NotImplementedError("Must be called via tool_executor with injected credentials")
 
 

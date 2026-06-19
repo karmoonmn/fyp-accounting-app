@@ -37,9 +37,9 @@ export default function CreateBill() {
   const [memo, setMemo] = useState('')
   const [lines, setLines] = useState(() => {
     if (prefill?.line_items?.length) {
-      return prefill.line_items.map((l, i) => ({
+        return prefill.line_items.map((l, i) => ({
         lineNum: i + 1,
-        accountId: '',
+        accountId: l.account_id ? l.account_id.toString() : '',
         description: l.description || '',
         amount: l.amount != null ? l.amount.toString() : (l.unit_price != null ? l.unit_price.toString() : '0'),
       }))
