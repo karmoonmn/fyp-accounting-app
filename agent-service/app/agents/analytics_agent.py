@@ -11,7 +11,7 @@ import logging
 from datetime import date, timedelta
 from typing import Any
 
-from langchain_core.messages import AIMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from app.clients import ml_client, spring_boot_client
@@ -139,10 +139,12 @@ async def analytics_agent(state: AgentState) -> dict[str, Any]:
             "- Monthly projections with dollar amounts\n"
             "- Trends (increasing/decreasing)\n"
             "- Confidence/reliability notes based on model metrics\n"
-            "- Actionable recommendations\n\n"
+            "- Actionable recommendations."
+        )),
+        HumanMessage(content=(
             f"User's question: {state['user_input']}\n\n"
             f"Forecast results:\n{json.dumps(results, indent=2, default=str)}"
-        )),
+        ))
     ]
 
     final = await model.ainvoke(synthesis_messages)
