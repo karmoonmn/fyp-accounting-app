@@ -1,0 +1,10 @@
+﻿Document #,Customer,Due Date,Aging Bucket,Amount (USD)
+INV-2026-001,Acme Enterprise,2026-11-30,Current (0-30d),15000.00
+INV-2026-088,Beta Logistics,2026-10-15,31-60 Days Overdue,8000.00
+INV-2026-042,Delta Global,2026-08-01,90+ Days Overdue,2000.00
+
+---,SUMMARY BY BUCKET,,,
+,Current (0-30d),,,15000.00
+,31-60 Days Overdue,,,8000.00
+,90+ Days Overdue,,,2000.00
+,TOTAL OUTSTANDING,,,25000.00

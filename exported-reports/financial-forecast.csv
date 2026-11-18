@@ -1,0 +1,10 @@
+﻿Period Month,Type,Projected/Historical Revenue (USD),Projected/Historical Expenses (USD),Net Margin (USD)
+--- HISTORICAL PERIODS ---,,,,
+2026-08,Historical,10000.00,7000.00,3000.00
+2026-09,Historical,12000.00,7500.00,4500.00
+2026-10,Historical,15000.00,8000.00,7000.00
+
+--- FORECASTED PERIODS ---,,,,
+2026-11,Forecast,16000.00,8200.00,7800.00
+2026-12,Forecast,17500.00,8400.00,9100.00
+2027-01,Forecast,18500.00,8600.00,9900.00

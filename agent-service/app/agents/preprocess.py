@@ -83,9 +83,9 @@ async def _process_image(image_bytes: bytes, context: str) -> dict | None:
             {"type": "text", "text": (
                 "You are an expert financial document parser. "
                 "Extract all structured data from this document image. "
-                "Identify: document type (invoice/receipt/bill), vendor name, "
+                "Identify: document type (invoice, bill, or bank statement), vendor name, "
                 "customer name, document number, date, due date, line items "
-                "(description, quantity, unit price, amount), total amount, "
+                "(description, quantity, unit price, amount), total amount, tax details (tax amount or percentage), "
                 "and any notes/memo. "
                 f"Additional context from user: {context}"
             )},
@@ -132,7 +132,9 @@ async def _structure_pdf_text(pdf_text: str, context: str) -> dict | None:
         content=(
             "You are an expert financial document parser. "
             "The following text was extracted from a PDF document. "
-            "Extract all structured financial data from it.\n\n"
+            "Extract all structured financial data from it. "
+            "Identify document type (invoice, bill, or bank statement), vendor name, "
+            "invoice/document number, transaction date, amount, and tax details.\n\n"
             f"PDF Text:\n{pdf_text}\n\n"
             f"Additional context: {context}"
         )

@@ -1,0 +1,15 @@
+﻿Account Code,Account Name,Category,Balance (USD)
+---,ASSETS,Category Header,
+1001,Operating Bank Account,Assets,95000.00
+1002,Accounts Receivable,Assets,25000.00
+,TOTAL ASSETS,Summary,120000.00
+
+---,LIABILITIES,Category Header,
+2001,Accounts Payable,Liabilities,35000.00
+,TOTAL LIABILITIES,Summary,35000.00
+
+---,EQUITY,Category Header,
+3001,Owner's Equity & Retained Earnings,Equity,85000.00
+,TOTAL EQUITY,Summary,85000.00
+
+,TOTAL LIABILITIES & EQUITY,Summary,120000.00

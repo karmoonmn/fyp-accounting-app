@@ -16,8 +16,6 @@ import java.util.Map;
 public class ForecastMlClient {
 
     private final RestTemplate restTemplate;
-    
-    // In production, this would be injected via application.yml
     private final String mlServiceUrl = "http://127.0.0.1:8001/predict";
 
     public ForecastMlClient() {
@@ -34,7 +32,6 @@ public class ForecastMlClient {
             return restTemplate.postForObject(mlServiceUrl, entity, MlPredictResponse.class);
         } catch (Exception e) {
             System.err.println("Failed to call ML Service: " + e.getMessage());
-            // Return empty fallback instead of crashing
             return new MlPredictResponse();
         }
     }
@@ -59,5 +56,7 @@ public class ForecastMlClient {
     public static class MlPredictionPoint {
         private String month;
         private BigDecimal predictedAmount;
+        private BigDecimal lowerBound;
+        private BigDecimal upperBound;
     }
 }

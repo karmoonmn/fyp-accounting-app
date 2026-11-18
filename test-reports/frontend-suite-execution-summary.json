@@ -1,0 +1,101 @@
+[
+  {
+    "id": "m1",
+    "name": "Module 1: Financial Document Extraction Module",
+    "frs": "FR-01 to FR-06",
+    "screenshot": "module_01_doc_extraction_ui.png",
+    "screenshotPath": "C:\\Users\\ngokarmoon\\IdeaProjects\\fyp-accounting-app\\test-reports\\screenshots\\module_01_doc_extraction_ui.png",
+    "elapsedMs": 1626,
+    "status": "PASS"
+  },
+  {
+    "id": "m2",
+    "name": "Module 2: Input Processing & Classification Module",
+    "frs": "FR-07 to FR-10",
+    "screenshot": "module_02_input_classification_ui.png",
+    "screenshotPath": "C:\\Users\\ngokarmoon\\IdeaProjects\\fyp-accounting-app\\test-reports\\screenshots\\module_02_input_classification_ui.png",
+    "elapsedMs": 1591,
+    "status": "PASS"
+  },
+  {
+    "id": "m3",
+    "name": "Module 3: RAG Agent & Analytics Module",
+    "frs": "FR-11 to FR-18",
+    "screenshot": "module_03_rag_analytics_ui.png",
+    "screenshotPath": "C:\\Users\\ngokarmoon\\IdeaProjects\\fyp-accounting-app\\test-reports\\screenshots\\module_03_rag_analytics_ui.png",
+    "elapsedMs": 1588,
+    "status": "PASS"
+  },
+  {
+    "id": "m4",
+    "name": "Module 4: Authentication & Company Management Module",
+    "frs": "FR-19 to FR-23",
+    "screenshot": "module_04_auth_company_management_ui.png",
+    "screenshotPath": "C:\\Users\\ngokarmoon\\IdeaProjects\\fyp-accounting-app\\test-reports\\screenshots\\module_04_auth_company_management_ui.png",
+    "elapsedMs": 1573,
+    "status": "PASS"
+  },
+  {
+    "id": "m5",
+    "name": "Module 5: Chart of Accounts Management",
+    "frs": "FR-24 to FR-28",
+    "screenshot": "module_05_chart_of_accounts_ui.png",
+    "screenshotPath": "C:\\Users\\ngokarmoon\\IdeaProjects\\fyp-accounting-app\\test-reports\\screenshots\\module_05_chart_of_accounts_ui.png",
+    "elapsedMs": 2061,
+    "status": "PASS"
+  },
+  {
+    "id": "m6",
+    "name": "Module 6: Bill Management Module",
+    "frs": "FR-29 to FR-35",
+    "screenshot": "module_06_bill_management_ui.png",
+    "screenshotPath": "C:\\Users\\ngokarmoon\\IdeaProjects\\fyp-accounting-app\\test-reports\\screenshots\\module_06_bill_management_ui.png",
+    "elapsedMs": 2069,
+    "status": "PASS"
+  },
+  {
+    "id": "m7",
+    "name": "Module 7: Invoice Management Module",
+    "frs": "FR-36 to FR-43",
+    "screenshot": "module_07_invoice_management_ui.png",
+    "screenshotPath": "C:\\Users\\ngokarmoon\\IdeaProjects\\fyp-accounting-app\\test-reports\\screenshots\\module_07_invoice_management_ui.png",
+    "elapsedMs": 2054,
+    "status": "PASS"
+  },
+  {
+    "id": "m8",
+    "name": "Module 8: Payment Management Module",
+    "frs": "FR-44 to FR-52",
+    "screenshot": "module_08_payment_management_ui.png",
+    "screenshotPath": "C:\\Users\\ngokarmoon\\IdeaProjects\\fyp-accounting-app\\test-reports\\screenshots\\module_08_payment_management_ui.png",
+    "elapsedMs": 2037,
+    "status": "PASS"
+  },
+  {
+    "id": "m9",
+    "name": "Module 9: Bank Balance Management Module",
+    "frs": "FR-53 to FR-56",
+    "screenshot": "module_09_bank_balance_ui.png",
+    "screenshotPath": "C:\\Users\\ngokarmoon\\IdeaProjects\\fyp-accounting-app\\test-reports\\screenshots\\module_09_bank_balance_ui.png",
+    "elapsedMs": 2046,
+    "status": "PASS"
+  },
+  {
+    "id": "m10",
+    "name": "Module 10: Financial & Report Module",
+    "frs": "FR-57 to FR-61",
+    "screenshot": "module_10_financial_reports_ui.png",
+    "screenshotPath": "C:\\Users\\ngokarmoon\\IdeaProjects\\fyp-accounting-app\\test-reports\\screenshots\\module_10_financial_reports_ui.png",
+    "elapsedMs": 2272,
+    "status": "PASS"
+  },
+  {
+    "id": "m11",
+    "name": "Module 11: Forecasting & Prediction Agent Module",
+    "frs": "FR-62 to FR-66",
+    "screenshot": "module_11_forecasting_ui.png",
+    "screenshotPath": "C:\\Users\\ngokarmoon\\IdeaProjects\\fyp-accounting-app\\test-reports\\screenshots\\module_11_forecasting_ui.png",
+    "elapsedMs": 2408,
+    "status": "PASS"
+  }
+]

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { api } from '../../api'
 import { useAuth } from '../../context/AuthContext'
+import { FaPrint, FaDownload } from 'react-icons/fa'
+import { exportToCsv, printReport } from '../../utils/exportReport'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts'
 import {
   HiOutlinePresentationChartLine,
@@ -77,6 +79,40 @@ export default function ExpenseDashboard() {
 
   const allCategories = [...new Set(data?.expenseByCategory?.map(c => c.accountName) || [])]
 
+  const handleExportCsv = () => {
+    if (!data) return
+    const headers = ['Category', 'Annual Expense (USD)', 'Percentage of Total']
+    const total = data.totalExpenses || 1
+    const rows = (data.expenseByCategory || []).map(item => [
+      item.accountName || '',
+      (item.balance || 0).toFixed(2),
+      `${(((item.balance || 0) / total) * 100).toFixed(1)}%`
+    ])
+
+    rows.push([])
+    rows.push(['TOTAL EXPENSES', (data.totalExpenses || 0).toFixed(2), '100.0%'])
+
+    if (data.monthlyTrends && data.monthlyTrends.length > 0) {
+      rows.push([])
+      rows.push(['--- MONTHLY BREAKDOWN ---', '', ''])
+      const monthHeaders = ['Month', ...allCategories, 'Monthly Total']
+      rows.push(monthHeaders)
+      data.monthlyTrends.forEach(trend => {
+        let mTotal = 0
+        const row = [trend.month]
+        allCategories.forEach(cat => {
+          const val = trend[cat] || 0
+          mTotal += val
+          row.push(val.toFixed(2))
+        })
+        row.push(mTotal.toFixed(2))
+        rows.push(row)
+      })
+    }
+
+    exportToCsv(`expense-analysis_${year}.csv`, headers, rows)
+  }
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
       {/* Header */}
@@ -91,18 +127,36 @@ export default function ExpenseDashboard() {
               <p className="text-[13px] text-[#64748B] mt-0.5">Breakdown and monthly trends of operating expenses</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 bg-white rounded-xl border border-violet-200 px-4 py-2 shadow-sm">
-            <span className="text-xs font-semibold text-slate-500">Fiscal Year</span>
-            <select
-              value={year}
-              onChange={e => setYear(Number(e.target.value))}
-              className="text-[13px] text-[#111827] bg-transparent focus:outline-none font-bold cursor-pointer"
-            >
-              {[...Array(5)].map((_, i) => {
-                const y = new Date().getFullYear() - i;
-                return <option key={y} value={y}>{y}</option>
-              })}
-            </select>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 bg-white rounded-xl border border-violet-200 px-4 py-2 shadow-sm">
+              <span className="text-xs font-semibold text-slate-500">Fiscal Year</span>
+              <select
+                value={year}
+                onChange={e => setYear(Number(e.target.value))}
+                className="text-[13px] text-[#111827] bg-transparent focus:outline-none font-bold cursor-pointer"
+              >
+                {[...Array(5)].map((_, i) => {
+                  const y = new Date().getFullYear() - i;
+                  return <option key={y} value={y}>{y}</option>
+                })}
+              </select>
+            </div>
+            <div className="flex items-center gap-2 no-print">
+              <button
+                onClick={printReport}
+                className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-slate-800 hover:border-slate-300 shadow-sm transition-all duration-200"
+                title="Print to PDF"
+              >
+                <FaPrint className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={handleExportCsv}
+                className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-slate-800 hover:border-slate-300 shadow-sm transition-all duration-200"
+                title="Export to Excel / CSV"
+              >
+                <FaDownload className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         </div>
       </div>

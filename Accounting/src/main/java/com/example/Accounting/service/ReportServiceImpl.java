@@ -327,20 +327,17 @@ public class ReportServiceImpl implements ReportService {
     public ForecastResponse getForecast(int monthsAhead) {
         Long companyId = SecurityUtils.requireCompanyId();
         LocalDate today = LocalDate.now();
-        LocalDate sixMonthsAgo = today.minusMonths(6).withDayOfMonth(1);
-        
-        // Use exact monthsAhead requested by user
+        LocalDate historyStart = today.minusMonths(24).withDayOfMonth(1);
         int mlMonths = monthsAhead > 0 ? monthsAhead : 3;
 
-        List<Object[]> balancesData = journalEntryLineRepo.getDailyAccountBalancesForPeriod(companyId, sixMonthsAgo, today);
+        List<Object[]> balancesData = journalEntryLineRepo.getDailyAccountBalancesForPeriod(companyId, historyStart, today);
 
-        // Group by month
         Map<String, BigDecimal> historicalRevenue = new LinkedHashMap<>();
         Map<String, BigDecimal> historicalExpense = new LinkedHashMap<>();
         
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMM yyyy");
 
-        for (int i = 6; i >= 0; i--) {
+        for (int i = 24; i >= 0; i--) {
             LocalDate m = today.minusMonths(i);
             String monthKey = m.format(formatter);
             historicalRevenue.put(monthKey, BigDecimal.ZERO);
@@ -412,7 +409,6 @@ public class ReportServiceImpl implements ReportService {
         
         ForecastMlClient.MlPredictResponse expRes = forecastMlClient.predict(expReq);
 
-        // Combine ML results
         if (revRes != null && revRes.getPredictions() != null && expRes != null && expRes.getPredictions() != null) {
             for (int i = 0; i < mlMonths; i++) {
                 if (i < revRes.getPredictions().size() && i < expRes.getPredictions().size()) {
@@ -420,13 +416,16 @@ public class ReportServiceImpl implements ReportService {
                     fMap.put("month", revRes.getPredictions().get(i).getMonth());
                     fMap.put("revenue", revRes.getPredictions().get(i).getPredictedAmount());
                     fMap.put("expenses", expRes.getPredictions().get(i).getPredictedAmount());
+                    fMap.put("lowerRevenueBound", revRes.getPredictions().get(i).getLowerBound());
+                    fMap.put("upperRevenueBound", revRes.getPredictions().get(i).getUpperBound());
+                    fMap.put("lowerExpenseBound", expRes.getPredictions().get(i).getLowerBound());
+                    fMap.put("upperExpenseBound", expRes.getPredictions().get(i).getUpperBound());
                     forecastDataList.add(fMap);
                 }
             }
         }
 
-        // Fetch actual breakdown from Profit & Loss to serve as category breakdown
-        ProfitLossResponse pl = getProfitAndLoss(sixMonthsAgo, today);
+        ProfitLossResponse pl = getProfitAndLoss(historyStart, today);
         List<Map<String, Object>> projectedIncomeByCategory = new ArrayList<>();
         if (pl.getRevenueAccounts() != null) {
             for (AccountBalanceDto acc : pl.getRevenueAccounts()) {

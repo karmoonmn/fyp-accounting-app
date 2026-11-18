@@ -1,0 +1,344 @@
+{
+  "companyId": "TEST_COMPANY_001",
+  "companyName": "Apex Retail & Tech Solutions Inc.",
+  "currency": "USD",
+  "periodCount": 24,
+  "records": [
+    {
+      "month": "2024-01",
+      "revenue": 28463.06,
+      "cogs": 6342.83,
+      "expenses": 29661.68,
+      "netIncome": -1198.62,
+      "breakdown": {
+        "salaries": 16000,
+        "rent": 3200,
+        "marketing": 2627.05,
+        "utilitiesAndCloud": 1491.8,
+        "cogs": 6342.83
+      }
+    },
+    {
+      "month": "2024-02",
+      "revenue": 28724.32,
+      "cogs": 6185.53,
+      "expenses": 29438.14,
+      "netIncome": -713.82,
+      "breakdown": {
+        "salaries": 16000,
+        "rent": 3200,
+        "marketing": 2588.42,
+        "utilitiesAndCloud": 1464.19,
+        "cogs": 6185.53
+      }
+    },
+    {
+      "month": "2024-03",
+      "revenue": 31008.6,
+      "cogs": 6768.35,
+      "expenses": 30112.73,
+      "netIncome": 895.87,
+      "breakdown": {
+        "salaries": 16000,
+        "rent": 3200,
+        "marketing": 2612.33,
+        "utilitiesAndCloud": 1532.05,
+        "cogs": 6768.35
+      }
+    },
+    {
+      "month": "2024-04",
+      "revenue": 30239.42,
+      "cogs": 6770.77,
+      "expenses": 30283.48,
+      "netIncome": -44.06,
+      "breakdown": {
+        "salaries": 16000,
+        "rent": 3200,
+        "marketing": 2679.05,
+        "utilitiesAndCloud": 1633.66,
+        "cogs": 6770.77
+      }
+    },
+    {
+      "month": "2024-05",
+      "revenue": 30219.19,
+      "cogs": 6747.84,
+      "expenses": 29912.82,
+      "netIncome": 306.37,
+      "breakdown": {
+        "salaries": 16000,
+        "rent": 3200,
+        "marketing": 2353.99,
+        "utilitiesAndCloud": 1610.99,
+        "cogs": 6747.84
+      }
+    },
+    {
+      "month": "2024-06",
+      "revenue": 30845.88,
+      "cogs": 6784.51,
+      "expenses": 30048.67,
+      "netIncome": 797.21,
+      "breakdown": {
+        "salaries": 16000,
+        "rent": 3200,
+        "marketing": 2476.67,
+        "utilitiesAndCloud": 1587.49,
+        "cogs": 6784.51
+      }
+    },
+    {
+      "month": "2024-07",
+      "revenue": 30190.67,
+      "cogs": 6719.41,
+      "expenses": 31414.87,
+      "netIncome": -1224.2,
+      "breakdown": {
+        "salaries": 17500,
+        "rent": 3200,
+        "marketing": 2316.23,
+        "utilitiesAndCloud": 1679.23,
+        "cogs": 6719.41
+      }
+    },
+    {
+      "month": "2024-08",
+      "revenue": 30516.62,
+      "cogs": 6835.6,
+      "expenses": 31768.51,
+      "netIncome": -1251.89,
+      "breakdown": {
+        "salaries": 17500,
+        "rent": 3200,
+        "marketing": 2593.64,
+        "utilitiesAndCloud": 1639.27,
+        "cogs": 6835.6
+      }
+    },
+    {
+      "month": "2024-09",
+      "revenue": 33170.39,
+      "cogs": 7203.42,
+      "expenses": 32109.59,
+      "netIncome": 1060.8,
+      "breakdown": {
+        "salaries": 17500,
+        "rent": 3200,
+        "marketing": 2370.64,
+        "utilitiesAndCloud": 1835.53,
+        "cogs": 7203.42
+      }
+    },
+    {
+      "month": "2024-10",
+      "revenue": 36366.8,
+      "cogs": 7859.75,
+      "expenses": 32926.84,
+      "netIncome": 3439.96,
+      "breakdown": {
+        "salaries": 17500,
+        "rent": 3200,
+        "marketing": 2605.26,
+        "utilitiesAndCloud": 1761.83,
+        "cogs": 7859.75
+      }
+    },
+    {
+      "month": "2024-11",
+      "revenue": 40250.61,
+      "cogs": 8988.3,
+      "expenses": 35944.7,
+      "netIncome": 4305.91,
+      "breakdown": {
+        "salaries": 17500,
+        "rent": 3200,
+        "marketing": 4374.03,
+        "utilitiesAndCloud": 1882.37,
+        "cogs": 8988.3
+      }
+    },
+    {
+      "month": "2024-12",
+      "revenue": 42650.11,
+      "cogs": 9252.03,
+      "expenses": 36322.43,
+      "netIncome": 6327.68,
+      "breakdown": {
+        "salaries": 17500,
+        "rent": 3200,
+        "marketing": 4560.91,
+        "utilitiesAndCloud": 1809.49,
+        "cogs": 9252.03
+      }
+    },
+    {
+      "month": "2025-01",
+      "revenue": 35701.83,
+      "cogs": 7817.27,
+      "expenses": 34644.88,
+      "netIncome": 1056.95,
+      "breakdown": {
+        "salaries": 19000,
+        "rent": 3200,
+        "marketing": 2612.81,
+        "utilitiesAndCloud": 2014.8,
+        "cogs": 7817.27
+      }
+    },
+    {
+      "month": "2025-02",
+      "revenue": 36437.16,
+      "cogs": 8049.45,
+      "expenses": 34684.89,
+      "netIncome": 1752.27,
+      "breakdown": {
+        "salaries": 19000,
+        "rent": 3200,
+        "marketing": 2361.83,
+        "utilitiesAndCloud": 2073.61,
+        "cogs": 8049.45
+      }
+    },
+    {
+      "month": "2025-03",
+      "revenue": 38741.06,
+      "cogs": 8610.66,
+      "expenses": 35367.51,
+      "netIncome": 3373.55,
+      "breakdown": {
+        "salaries": 19000,
+        "rent": 3200,
+        "marketing": 2514.14,
+        "utilitiesAndCloud": 2042.71,
+        "cogs": 8610.66
+      }
+    },
+    {
+      "month": "2025-04",
+      "revenue": 37833.74,
+      "cogs": 8312.32,
+      "expenses": 35289.35,
+      "netIncome": 2544.39,
+      "breakdown": {
+        "salaries": 19000,
+        "rent": 3200,
+        "marketing": 2605.55,
+        "utilitiesAndCloud": 2171.48,
+        "cogs": 8312.32
+      }
+    },
+    {
+      "month": "2025-05",
+      "revenue": 38554.25,
+      "cogs": 8504.21,
+      "expenses": 35274.25,
+      "netIncome": 3280,
+      "breakdown": {
+        "salaries": 19000,
+        "rent": 3200,
+        "marketing": 2423.7,
+        "utilitiesAndCloud": 2146.34,
+        "cogs": 8504.21
+      }
+    },
+    {
+      "month": "2025-06",
+      "revenue": 38677.24,
+      "cogs": 8370.81,
+      "expenses": 35136.33,
+      "netIncome": 3540.91,
+      "breakdown": {
+        "salaries": 19000,
+        "rent": 3200,
+        "marketing": 2497,
+        "utilitiesAndCloud": 2068.52,
+        "cogs": 8370.81
+      }
+    },
+    {
+      "month": "2025-07",
+      "revenue": 37272.54,
+      "cogs": 8337.12,
+      "expenses": 36652.45,
+      "netIncome": 620.09,
+      "breakdown": {
+        "salaries": 20500,
+        "rent": 3200,
+        "marketing": 2450.14,
+        "utilitiesAndCloud": 2165.19,
+        "cogs": 8337.12
+      }
+    },
+    {
+      "month": "2025-08",
+      "revenue": 37405.91,
+      "cogs": 8229.46,
+      "expenses": 36589.66,
+      "netIncome": 816.25,
+      "breakdown": {
+        "salaries": 20500,
+        "rent": 3200,
+        "marketing": 2426.32,
+        "utilitiesAndCloud": 2233.88,
+        "cogs": 8229.46
+      }
+    },
+    {
+      "month": "2025-09",
+      "revenue": 41090.63,
+      "cogs": 9031.49,
+      "expenses": 37327.91,
+      "netIncome": 3762.72,
+      "breakdown": {
+        "salaries": 20500,
+        "rent": 3200,
+        "marketing": 2376.16,
+        "utilitiesAndCloud": 2220.26,
+        "cogs": 9031.49
+      }
+    },
+    {
+      "month": "2025-10",
+      "revenue": 45296.23,
+      "cogs": 9972.81,
+      "expenses": 38415.33,
+      "netIncome": 6880.9,
+      "breakdown": {
+        "salaries": 20500,
+        "rent": 3200,
+        "marketing": 2413.24,
+        "utilitiesAndCloud": 2329.28,
+        "cogs": 9972.81
+      }
+    },
+    {
+      "month": "2025-11",
+      "revenue": 48600.12,
+      "cogs": 10558.96,
+      "expenses": 41364.87,
+      "netIncome": 7235.25,
+      "breakdown": {
+        "salaries": 20500,
+        "rent": 3200,
+        "marketing": 4636.34,
+        "utilitiesAndCloud": 2469.57,
+        "cogs": 10558.96
+      }
+    },
+    {
+      "month": "2025-12",
+      "revenue": 51975.25,
+      "cogs": 11511.4,
+      "expenses": 42060.94,
+      "netIncome": 9914.31,
+      "breakdown": {
+        "salaries": 20500,
+        "rent": 3200,
+        "marketing": 4418.28,
+        "utilitiesAndCloud": 2431.26,
+        "cogs": 11511.4
+      }
+    }
+  ]
+}

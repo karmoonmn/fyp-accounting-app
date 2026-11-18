@@ -55,3 +55,29 @@
     transform: translateY(0);
   }
 }
+
+@media print {
+  /* Hide UI navigation, sidebar, chat overlays, action bars when printing/saving as PDF */
+  .no-print,
+  aside,
+  header,
+  nav,
+  button,
+  input[type="date"],
+  #floating-ai-chat {
+    display: none !important;
+  }
+
+  body, html, #root {
+    background: #ffffff !important;
+    height: auto !important;
+    overflow: visible !important;
+    color: #000000 !important;
+  }
+
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+}

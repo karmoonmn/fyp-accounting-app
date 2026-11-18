@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { api } from '../../api'
 import { useAuth } from '../../context/AuthContext'
 import { FaPrint, FaDownload } from 'react-icons/fa'
+import { exportToCsv, printReport } from '../../utils/exportReport'
 import {
   HiOutlineArrowTrendingUp,
   HiOutlineArrowTrendingDown,
@@ -44,6 +45,37 @@ export default function ProfitLossReport() {
   const formatMoney = (val) => {
     if (val == null) return '$0.00'
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val)
+  }
+
+  const handleExportCsv = () => {
+    if (!data) return
+    const headers = ['Account Code', 'Account Name', 'Category', 'Amount (USD)']
+    const rows = []
+    
+    // Revenue
+    rows.push(['---', 'OPERATING REVENUE', 'Category Header', ''])
+    if (data.revenueAccounts) {
+      data.revenueAccounts.forEach(acc => {
+        rows.push([acc.accountCode || '', acc.accountName || '', 'Operating Revenue', (acc.balance || 0).toFixed(2)])
+      })
+    }
+    rows.push(['', 'Total Operating Revenue', 'Subtotal', (data.totalRevenue || 0).toFixed(2)])
+    rows.push([])
+
+    // Expenses
+    rows.push(['---', 'OPERATING EXPENSES', 'Category Header', ''])
+    if (data.expenseAccounts) {
+      data.expenseAccounts.forEach(acc => {
+        rows.push([acc.accountCode || '', acc.accountName || '', 'Operating Expenses', (acc.balance || 0).toFixed(2)])
+      })
+    }
+    rows.push(['', 'Total Operating Expenses', 'Subtotal', (data.totalExpenses || 0).toFixed(2)])
+    rows.push([])
+
+    // Net Profit
+    rows.push(['', 'NET PROFIT / (LOSS)', 'Summary', (data.netProfit || 0).toFixed(2)])
+
+    exportToCsv(`profit-and-loss_${startDate}_to_${endDate}.csv`, headers, rows)
   }
 
   return (
@@ -146,11 +178,11 @@ export default function ProfitLossReport() {
               {/* Period Header */}
               <div className="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
                 <span className="font-semibold text-slate-600 text-sm">Period: {data.period}</span>
-                <div className="flex gap-1.5">
-                  <button className="p-2 rounded-lg text-slate-400 hover:text-[#0F766E] hover:bg-emerald-50 transition-all duration-200" title="Print">
+                <div className="flex gap-1.5 no-print">
+                  <button onClick={printReport} className="p-2 rounded-lg text-slate-400 hover:text-[#0F766E] hover:bg-emerald-50 transition-all duration-200" title="Print to PDF">
                     <FaPrint className="w-3.5 h-3.5" />
                   </button>
-                  <button className="p-2 rounded-lg text-slate-400 hover:text-[#0F766E] hover:bg-emerald-50 transition-all duration-200" title="Export">
+                  <button onClick={handleExportCsv} className="p-2 rounded-lg text-slate-400 hover:text-[#0F766E] hover:bg-emerald-50 transition-all duration-200" title="Export to Excel / CSV">
                     <FaDownload className="w-3.5 h-3.5" />
                   </button>
                 </div>

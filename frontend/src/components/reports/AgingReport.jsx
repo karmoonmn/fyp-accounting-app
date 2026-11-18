@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { api } from '../../api'
 import { useAuth } from '../../context/AuthContext'
+import { FaPrint, FaDownload } from 'react-icons/fa'
+import { exportToCsv, printReport } from '../../utils/exportReport'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import {
   HiOutlineClock,
@@ -54,21 +56,63 @@ export default function AgingReport({ type }) {
 
   const isAR = type === 'AR'
 
+  const handleExportCsv = () => {
+    if (!data) return
+    const headers = ['Document #', isAR ? 'Customer' : 'Supplier', 'Due Date', 'Aging Bucket', 'Amount (USD)']
+    const items = data.buckets.flatMap(b => b.items.map(item => ({ ...item, bucketName: b.name })))
+      .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
+    
+    const rows = items.map(item => [
+      item.docNumber || '',
+      item.name || '',
+      item.dueDate || 'N/A',
+      item.bucketName || '',
+      (item.amount || 0).toFixed(2)
+    ])
+
+    rows.push([])
+    rows.push(['---', 'SUMMARY BY BUCKET', '', '', ''])
+    data.buckets.forEach(bucket => {
+      rows.push(['', bucket.name, '', '', (bucket.amount || 0).toFixed(2)])
+    })
+    rows.push(['', 'TOTAL OUTSTANDING', '', '', (data.totalAmount || 0).toFixed(2)])
+
+    exportToCsv(`${isAR ? 'ar' : 'ap'}-aging-report.csv`, headers, rows)
+  }
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
       {/* Header */}
       <div className={`bg-gradient-to-r ${isAR ? 'from-amber-50 to-orange-50 border-amber-100' : 'from-rose-50 to-pink-50 border-rose-100'} border-b px-7 py-6`}>
-        <div className="flex items-center gap-3">
-          <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${isAR ? 'from-amber-500 to-orange-600 shadow-amber-200' : 'from-rose-500 to-pink-600 shadow-rose-200'} flex items-center justify-center shadow-md`}>
-            <HiOutlineClock className="w-5.5 h-5.5 text-white" />
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="flex items-center gap-3">
+            <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${isAR ? 'from-amber-500 to-orange-600 shadow-amber-200' : 'from-rose-500 to-pink-600 shadow-rose-200'} flex items-center justify-center shadow-md`}>
+              <HiOutlineClock className="w-5.5 h-5.5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-[#111827] text-[18px] font-bold">
+                {isAR ? 'Accounts Receivable Aging' : 'Accounts Payable Aging'}
+              </h2>
+              <p className="text-[13px] text-[#64748B] mt-0.5">
+                {isAR ? 'Outstanding customer invoices by overdue duration' : 'Outstanding vendor bills by overdue duration'}
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-[#111827] text-[18px] font-bold">
-              {isAR ? 'Accounts Receivable Aging' : 'Accounts Payable Aging'}
-            </h2>
-            <p className="text-[13px] text-[#64748B] mt-0.5">
-              {isAR ? 'Outstanding customer invoices by overdue duration' : 'Outstanding vendor bills by overdue duration'}
-            </p>
+          <div className="flex items-center gap-2 no-print">
+            <button
+              onClick={printReport}
+              className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-slate-800 hover:border-slate-300 shadow-sm transition-all duration-200"
+              title="Print to PDF"
+            >
+              <FaPrint className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={handleExportCsv}
+              className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-slate-800 hover:border-slate-300 shadow-sm transition-all duration-200"
+              title="Export to Excel / CSV"
+            >
+              <FaDownload className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
       </div>

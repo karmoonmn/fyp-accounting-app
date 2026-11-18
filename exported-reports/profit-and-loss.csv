@@ -1,0 +1,13 @@
+﻿Account Code,Account Name,Category,Amount (USD)
+---,OPERATING REVENUE,Category Header,
+4001,Software Subscriptions,Operating Revenue,75000.00
+4002,Consulting Services,Operating Revenue,45000.00
+,Total Operating Revenue,Subtotal,120000.00
+
+---,OPERATING EXPENSES,Category Header,
+5001,Cloud Hosting & Infra,Operating Expenses,18000.00
+5002,Office Rent & Facilities,Operating Expenses,24000.00
+5003,Salaries & Wages,Operating Expenses,42000.00
+,Total Operating Expenses,Subtotal,84000.00
+
+,NET PROFIT / (LOSS),Summary,36000.00

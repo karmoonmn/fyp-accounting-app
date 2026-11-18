@@ -26,6 +26,8 @@ import PaymentList from './pages/PaymentList'
 import SupplierList from './pages/SupplierList'
 import CreateSupplier from './pages/CreateSupplier'
 import Settings from './pages/Settings'
+import TestReports from './pages/TestReports'
+import TestAllModules from './pages/TestAllModules'
 
 export default function App() {
   return (
@@ -40,6 +42,8 @@ export default function App() {
           <Route path="/bank" element={<BankAccountHistory />} />
           <Route path="/analytics" element={<FinancialForecast />} />
           <Route path="/reports" element={<FinancialReports />} />
+          <Route path="/test-reports" element={<TestReports />} />
+          <Route path="/test-all-modules" element={<TestAllModules />} />
           <Route path="/quick" element={<QuickAction />} />
           <Route path="/invoice/new" element={<CreateInvoice />} />
           <Route path="/invoice/edit/:id" element={<CreateInvoice />} />

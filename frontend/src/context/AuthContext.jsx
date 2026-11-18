@@ -39,7 +39,7 @@ function mapFirebaseErrorToMessage(code, defaultMsg = 'An error occurred') {
   return errors[code] || defaultMsg
 }
 
-const AuthContext = createContext(null)
+export const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
   const [firebaseUser, setFirebaseUser] = useState(null)

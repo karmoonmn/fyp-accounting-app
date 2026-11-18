@@ -46,19 +46,21 @@ class ClassificationResult(BaseModel):
 class DocumentExtractionResult(BaseModel):
     """Structured output when Gemini extracts data from an image/PDF."""
 
-    document_type: Literal["invoice", "receipt", "bill", "unknown"] = Field(
-        description="The detected document type."
+    document_type: Literal["invoice", "bill", "bank_statement", "receipt", "unknown"] = Field(
+        description="The detected document type (invoice, bill, bank statement, receipt, or unknown)."
     )
     vendor_name: str | None = Field(default=None, description="Vendor / supplier name.")
     customer_name: str | None = Field(default=None, description="Customer name.")
-    doc_number: str | None = Field(default=None, description="Invoice or bill number.")
+    doc_number: str | None = Field(default=None, description="Invoice, bill, or reference number.")
     date: str | None = Field(default=None, description="Transaction date (YYYY-MM-DD).")
     due_date: str | None = Field(default=None, description="Due date (YYYY-MM-DD).")
     currency: str = Field(default="USD", description="Currency code.")
     line_items: list[LineItemExtraction] = Field(
         default_factory=list, description="Extracted line items."
     )
-    total_amount: float | None = Field(default=None, description="Total amount.")
+    total_amount: float | None = Field(default=None, description="Total transaction amount.")
+    tax_amount: float | None = Field(default=None, description="Tax or VAT amount.")
+    tax_details: str | None = Field(default=None, description="Tax rate, tax breakdown, or tax details.")
     notes: str | None = Field(default=None, description="Any memo or notes.")
 
 

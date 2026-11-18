@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { api } from '../../api'
 import { useAuth } from '../../context/AuthContext'
 import { FaPrint, FaDownload } from 'react-icons/fa'
+import { exportToCsv, printReport } from '../../utils/exportReport'
 import {
   HiOutlineCalendarDays,
   HiOutlineScale,
@@ -62,6 +63,47 @@ export default function BalanceSheetReport() {
     if (token) loadData()
   }, [token, asOfDate])
 
+  const handleExportCsv = () => {
+    if (!data) return
+    const headers = ['Account Code', 'Account Name', 'Category', 'Balance (USD)']
+    const rows = []
+
+    const extractNodes = (nodes, category, prefix = '') => {
+      if (!nodes) return
+      nodes.forEach(node => {
+        if (node.balance !== 0 || (node.children && node.children.length > 0)) {
+          rows.push([node.accountCode || '', `${prefix}${node.accountName || ''}`, category, (node.balance || 0).toFixed(2)])
+          if (node.children && node.children.length > 0) {
+            extractNodes(node.children, category, prefix + '  ')
+          }
+        }
+      })
+    }
+
+    // Assets
+    rows.push(['---', 'ASSETS', 'Category Header', ''])
+    extractNodes(data.assets, 'Assets')
+    rows.push(['', 'TOTAL ASSETS', 'Summary', (data.totalAssets || 0).toFixed(2)])
+    rows.push([])
+
+    // Liabilities
+    rows.push(['---', 'LIABILITIES', 'Category Header', ''])
+    extractNodes(data.liabilities, 'Liabilities')
+    rows.push(['', 'TOTAL LIABILITIES', 'Summary', (data.totalLiabilities || 0).toFixed(2)])
+    rows.push([])
+
+    // Equity
+    rows.push(['---', 'EQUITY', 'Category Header', ''])
+    extractNodes(data.equity, 'Equity')
+    rows.push(['', 'TOTAL EQUITY', 'Summary', (data.totalEquity || 0).toFixed(2)])
+    rows.push([])
+
+    // Total Liabilities & Equity
+    rows.push(['', 'TOTAL LIABILITIES & EQUITY', 'Summary', ((data.totalLiabilities || 0) + (data.totalEquity || 0)).toFixed(2)])
+
+    exportToCsv(`balance-sheet_as_of_${asOfDate}.csv`, headers, rows)
+  }
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
       {/* Header */}
@@ -108,11 +150,11 @@ export default function BalanceSheetReport() {
         ) : data ? (
           <div className="border border-slate-200 rounded-xl overflow-hidden">
             {/* Print/Export Bar */}
-            <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex justify-end gap-1.5">
-              <button className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all duration-200" title="Print">
+            <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex justify-end gap-1.5 no-print">
+              <button onClick={printReport} className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all duration-200" title="Print to PDF">
                 <FaPrint className="w-3.5 h-3.5" />
               </button>
-              <button className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all duration-200" title="Export">
+              <button onClick={handleExportCsv} className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all duration-200" title="Export to Excel / CSV">
                 <FaDownload className="w-3.5 h-3.5" />
               </button>
             </div>
