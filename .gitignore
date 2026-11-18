@@ -28,3 +28,8 @@ target/
 *.war
 .gradle/
 build/
+
+# sqlite files
+agent-service/checkpoints.db
+agent-service/checkpoints.db-shm
+agent-service/checkpoints.db-wal
