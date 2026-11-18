@@ -308,7 +308,7 @@ export default function DashboardLayout({ children, activeNav = 'dashboard' }) {
         <main className="flex-1 p-6 min-w-0 overflow-y-auto">{children}</main>
       </div>
 
-      <FloatingAiChat />
+      {activeNav !== 'chats' && <FloatingAiChat />}
     </div>
   )
 }

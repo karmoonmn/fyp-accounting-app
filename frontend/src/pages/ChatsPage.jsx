@@ -105,14 +105,15 @@ function ConfirmationCard({ action, onConfirm, onCancel, onModify }) {
 export default function ChatsPage() {
   const { me, getFreshToken, idToken: token } = useAuth()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
 
-  // Conversations list
-  const [conversations, setConversations] = useState([])
-  const [convsLoading, setConvsLoading] = useState(true)
+  // Chat threads (tabs) list
+  const [threads, setThreads] = useState([])
+  const [threadsLoading, setThreadsLoading] = useState(true)
 
-  // Active conversation
-  const [activeConvId, setActiveConvId] = useState(null)
+  // Active thread tab (keyed by LangGraph thread_id)
+  const [activeThreadId, setActiveThreadId] = useState(null)
+  const activeThreadIdRef = useRef(null)
   const [messages, setMessages] = useState([])
   const [msgsLoading, setMsgsLoading] = useState(false)
   const [isComposing, setIsComposing] = useState(false)
@@ -126,104 +127,132 @@ export default function ChatsPage() {
   const listRef = useRef(null)
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
-  // When a fresh response just arrived (activeConvId just set from null), skip the
-  // DB message reload so we don't wipe optimistic UI / confirmation card.
+  // When a fresh response is in flight or just arrived, skip the DB message reload
+  // so we don't wipe optimistic UI / confirmation card.
   const skipNextLoadRef = useRef(false)
   const isSendingRef = useRef(false)
 
   const companyId = me?.company?.id || me?.companyId || 1
 
-  /* ── Load conversations from backend ────────────────────────────────────── */
+  const selectThread = useCallback((tid) => {
+    activeThreadIdRef.current = tid
+    setActiveThreadId(tid)
+  }, [])
 
-  const loadConversations = useCallback(async () => {
+  /* ── Load chat threads from backend ─────────────────────────────────────── */
+
+  const loadThreads = useCallback(async () => {
     if (!token) return
-    setConvsLoading(true)
+    setThreadsLoading(true)
     try {
-      const data = await api('/api/conversations', { token })
-      if (data) setConversations(data)
+      const freshToken = (await getFreshToken()) || token
+      const data = await api('/api/threads', { token: freshToken })
+      if (data) setThreads(data)
     } catch (e) {
-      console.error('Failed to load conversations:', e)
+      console.error('Failed to load chat threads:', e)
     }
-    setConvsLoading(false)
-  }, [token])
+    setThreadsLoading(false)
+  }, [token, getFreshToken])
 
   useEffect(() => {
-    loadConversations()
-  }, [loadConversations])
+    loadThreads()
+  }, [loadThreads])
 
-  /* ── Auto-select conversation from query param ──────────────────────────── */
+  /* ── Auto-select thread from query param ────────────────────────────────── */
 
   useEffect(() => {
-    const convIdFromUrl = searchParams.get('conversation')
-    if (!convIdFromUrl || !token) return
-    // Already active — no need to re-fetch and re-trigger effects
-    if (convIdFromUrl === activeConvId) return
+    const threadIdFromUrl = searchParams.get('thread') || searchParams.get('conversation')
+    if (!threadIdFromUrl || !token) return
+    if (threadIdFromUrl === activeThreadIdRef.current) return
 
-    api(`/api/conversations/${convIdFromUrl}`, { token })
+    api(`/api/threads/${threadIdFromUrl}`, { token })
       .then((data) => {
         if (!data) return
-        setConversations((prev) => {
-          if (prev.find(c => c.id === data.id)) return prev
+        setThreads((prev) => {
+          if (prev.find(t => t.id === data.id)) return prev
           return [data, ...prev]
         })
-        setActiveConvId(convIdFromUrl)
-        sessionStorage.setItem('chatspage_active_conv', convIdFromUrl)
+        selectThread(threadIdFromUrl)
+        sessionStorage.setItem('chatspage_active_thread', threadIdFromUrl)
       })
       .catch(() => {})
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, token])
+  }, [searchParams, token, selectThread])
 
-  /* ── Load messages for active conversation ──────────────────────────────── */
+  /* ── Load messages & pending memory for active thread ───────────────────── */
 
-  const fetchMessages = useCallback(async (convId) => {
-    if (!convId || !token) return []
+  const fetchMessages = useCallback(async (tid) => {
+    if (!tid || !token) return []
     try {
-      const data = await api(`/api/conversations/${convId}/messages`, { token })
+      const freshToken = (await getFreshToken()) || token
+      const data = await api(`/api/threads/${tid}/messages`, { token: freshToken })
       return data || []
     } catch {
       return []
     }
-  }, [token])
+  }, [token, getFreshToken])
 
-  const loadMessages = useCallback(async (convId) => {
-    if (!convId) return
+  const loadThreadData = useCallback(async (tid) => {
+    if (!tid) return
     setMsgsLoading(true)
-    const data = await fetchMessages(convId)
+    const data = await fetchMessages(tid)
     setMessages(data)
     setMsgsLoading(false)
-  }, [fetchMessages])
 
-  useEffect(() => {
-    if (!activeConvId) {
-      setMessages([])
-      setPendingAction(null)
-      sessionStorage.removeItem('chatspage_active_conv')
-      return
-    }
-    setIsComposing(false)
-    sessionStorage.setItem('chatspage_active_conv', activeConvId)
-    
-    // Restore pendingAction from sessionStorage if it exists
-    const savedAction = sessionStorage.getItem(`pending_action_${activeConvId}`)
+    // Restore pendingAction from sessionStorage or chat_thread_memory
+    const savedAction = sessionStorage.getItem(`pending_action_${tid}`)
     if (savedAction) {
       try {
         setPendingAction(JSON.parse(savedAction))
-      } catch (e) {
+        return
+      } catch {
+        // fall through to memory check
+      }
+    }
+    try {
+      const freshToken = (await getFreshToken()) || token
+      const mem = await api(`/api/threads/${tid}/memory`, { token: freshToken })
+      if (mem && mem.pendingContext) {
+        const parsed = typeof mem.pendingContext === 'string'
+          ? JSON.parse(mem.pendingContext)
+          : mem.pendingContext
+        setPendingAction(parsed)
+        sessionStorage.setItem(`pending_action_${tid}`, JSON.stringify(parsed))
+      } else {
+        setPendingAction(null)
+      }
+    } catch {
+      setPendingAction(null)
+    }
+  }, [fetchMessages, token, getFreshToken])
+
+  useEffect(() => {
+    if (!activeThreadId) {
+      setMessages([])
+      setPendingAction(null)
+      sessionStorage.removeItem('chatspage_active_thread')
+      return
+    }
+    setIsComposing(false)
+    sessionStorage.setItem('chatspage_active_thread', activeThreadId)
+
+    const savedAction = sessionStorage.getItem(`pending_action_${activeThreadId}`)
+    if (savedAction) {
+      try {
+        setPendingAction(JSON.parse(savedAction))
+      } catch {
         setPendingAction(null)
       }
     } else {
       setPendingAction(null)
     }
 
-    // Skip DB reload if we just set activeConvId from a fresh send() response
-    // (the optimistic UI is already correct and the confirmation card is live)
     if (skipNextLoadRef.current) {
       skipNextLoadRef.current = false
       return
     }
 
-    loadMessages(activeConvId)
-  }, [activeConvId, loadMessages])
+    loadThreadData(activeThreadId)
+  }, [activeThreadId, loadThreadData])
 
   /* ── Auto-scroll ────────────────────────────────────────────────────────── */
 
@@ -232,51 +261,57 @@ export default function ChatsPage() {
     listRef.current.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages, isSending])
 
-  /* ── New chat ───────────────────────────────────────────────────────────── */
+  /* ── New chat tab ───────────────────────────────────────────────────────── */
 
   async function handleNewChat() {
     if (!token) return
-    setActiveConvId(null)
+    selectThread(null)
     setMessages([])
     setPendingAction(null)
     setInput('')
     setIsComposing(true)
-    sessionStorage.removeItem('chatspage_active_conv')
-    // Don't pre-create conversation — it will be created by the backend
-    // when the first message is sent
+    sessionStorage.removeItem('chatspage_active_thread')
+    setSearchParams({}, { replace: true })
     setTimeout(() => inputRef.current?.focus(), 100)
   }
 
-  /* ── Delete conversation ────────────────────────────────────────────────── */
+  /* ── Delete thread tab (cascades to chat_messages & chat_thread_memory) ── */
 
-  async function handleDeleteConversation(convId, e) {
+  async function handleDeleteThread(tid, e) {
     e.stopPropagation()
+    // Optimistically remove from UI immediately
+    setThreads((prev) => prev.filter((t) => t.id !== tid))
+    sessionStorage.removeItem(`pending_action_${tid}`)
+    if (activeThreadIdRef.current === tid) {
+      selectThread(null)
+      setMessages([])
+      setPendingAction(null)
+      setIsComposing(false)
+      sessionStorage.removeItem('chatspage_active_thread')
+      setSearchParams({}, { replace: true })
+    }
     try {
-      await api(`/api/conversations/${convId}`, { method: 'DELETE', token })
-      setConversations((prev) => prev.filter((c) => c.id !== convId))
-      if (activeConvId === convId) {
-        setActiveConvId(null)
-        setMessages([])
-        setPendingAction(null)
-        sessionStorage.removeItem(`pending_action_${convId}`)
-        setIsComposing(false)
-        sessionStorage.removeItem('chatspage_active_conv')
-      }
-    } catch (e) {
-      console.error('Failed to delete conversation:', e)
+      const freshToken = (await getFreshToken()) || token
+      await api(`/api/threads/${tid}`, { method: 'DELETE', token: freshToken })
+    } catch (err) {
+      console.error('Failed to delete thread in Supabase:', err)
+      loadThreads()
     }
   }
 
-  /* ── Generate conversation title (first message only) ──────────────────── */
+  /* ── Generate thread title (first message only) ─────────────────────────── */
 
-  async function generateAndSaveTitle(convId, userText, freshToken) {
+  async function generateAndSaveTitle(tid, userText, freshToken) {
     try {
       const formData = new FormData()
-      formData.append('message',
+      formData.append(
+        'message',
         `Generate a very short chat title (4-6 words max) for a conversation that starts with this message. Reply with ONLY the title, no quotes, no punctuation at the end:\n\n"${userText}"`
       )
       formData.append('company_id', companyId.toString())
       formData.append('auth_token', freshToken)
+      formData.append('persist', 'false')
+
       const res = await fetch(`${API_BASE}/api/agent/chat`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${freshToken}`, 'X-Company-Id': String(companyId) },
@@ -286,16 +321,14 @@ export default function ChatsPage() {
       const raw = (data.response || '').trim()
       const title = raw.replace(/^["']|["']$/g, '').trim().slice(0, 60) || userText.slice(0, 50)
 
-      // Save title via API
-      await api(`/api/conversations/${convId}`, {
+      await api(`/api/threads/${tid}`, {
         method: 'PATCH',
         body: { title },
         token: freshToken,
       })
 
-      // Update sidebar immediately
-      setConversations((prev) =>
-        prev.map((c) => c.id === convId ? { ...c, title } : c)
+      setThreads((prev) =>
+        prev.map((t) => (t.id === tid ? { ...t, title } : t))
       )
     } catch (err) {
       console.error('Failed to generate title:', err)
@@ -319,29 +352,63 @@ export default function ChatsPage() {
 
     const userText = trimmed || `[Uploaded: ${selectedFile?.name}]`
     const isFirstMessage = messages.length === 0
+    const nowIso = new Date().toISOString()
+
+    // Ensure we have a thread ID immediately on Enter so the chat tab appears
+    // right away and stays selected the entire time.
+    let targetThreadId = activeThreadIdRef.current
+    if (!targetThreadId) {
+      targetThreadId = crypto.randomUUID()
+      const defaultTitle = userText.length > 48 ? `${userText.slice(0, 48)}…` : userText
+
+      skipNextLoadRef.current = true
+      selectThread(targetThreadId)
+      sessionStorage.setItem('chatspage_active_thread', targetThreadId)
+      setSearchParams({ thread: targetThreadId }, { replace: true })
+
+      setThreads((prev) => {
+        if (prev.find((t) => t.id === targetThreadId)) return prev
+        return [
+          {
+            id: targetThreadId,
+            title: defaultTitle,
+            createdAt: nowIso,
+            updatedAt: nowIso,
+            lastMessageAt: nowIso,
+          },
+          ...prev,
+        ]
+      })
+    } else {
+      // Bump existing thread timestamp in sidebar while keeping it selected
+      setThreads((prev) =>
+        prev.map((t) =>
+          t.id === targetThreadId
+            ? { ...t, updatedAt: nowIso, lastMessageAt: nowIso }
+            : t
+        )
+      )
+    }
 
     // Optimistic insert user message into UI
     const tempUserId = `temp-u-${Date.now()}`
-    setMessages((prev) => [...prev, { id: tempUserId, role: 'user', content: userText, createdAt: new Date().toISOString() }])
+    setMessages((prev) => [...prev, { id: tempUserId, role: 'user', content: userText, createdAt: nowIso }])
     setInput('')
-    
-    // Clear the old card if it's already finished
+
     if (pendingAction && (pendingAction.status === 'completed' || pendingAction.status === 'cancelled')) {
       setPendingAction(null)
-      if (activeConvId) sessionStorage.removeItem(`pending_action_${activeConvId}`)
+      sessionStorage.removeItem(`pending_action_${targetThreadId}`)
     }
-    
+
     setIsSending(true)
     setIsComposing(false)
 
     try {
-      // Call AI agent — the backend saves both user + AI messages to SQL
       const formData = new FormData()
       formData.append('message', userText)
       formData.append('company_id', companyId.toString())
       formData.append('auth_token', freshToken)
-
-      if (activeConvId) formData.append('conversation_id', activeConvId)
+      formData.append('thread_id', targetThreadId)
       if (selectedFile) formData.append('file', selectedFile)
 
       const res = await fetch(`${API_BASE}/api/agent/chat`, {
@@ -350,40 +417,17 @@ export default function ChatsPage() {
         body: formData,
       })
       const data = await res.json()
-      const resolvedConvId = data.conversation_id || activeConvId
+      const resolvedThreadId = data.thread_id || targetThreadId
 
-      // ── Save pendingAction to sessionStorage BEFORE setActiveConvId ──────
-      // This ensures the useEffect that fires on activeConvId change can
-      // immediately restore it from sessionStorage (avoiding the race condition
-      // where useEffect fires before we reach setPendingAction below).
-      if (data.requires_confirmation && data.proposed_action && resolvedConvId) {
-        sessionStorage.setItem(`pending_action_${resolvedConvId}`, JSON.stringify(data.proposed_action))
+      if (data.requires_confirmation && data.proposed_action && resolvedThreadId) {
+        sessionStorage.setItem(`pending_action_${resolvedThreadId}`, JSON.stringify(data.proposed_action))
       }
 
-      // If this was the first message, the backend created a conversation
-      if (data.conversation_id && !activeConvId) {
-        const newConvId = data.conversation_id
-        // Skip the DB message reload — our optimistic UI is already correct
-        skipNextLoadRef.current = true
-        setActiveConvId(newConvId)
-        sessionStorage.setItem('chatspage_active_conv', newConvId)
-        setSearchParams({ conversation: newConvId })
-
-        // Add to sidebar with the new threadId
-        setConversations((prev) => {
-          if (prev.find(c => c.id === newConvId)) return prev
-          return [{ id: newConvId, title: null, threadId: data.thread_id, createdAt: new Date().toISOString() }, ...prev]
-        })
-
-        // Generate title from first message
-        generateAndSaveTitle(newConvId, userText, freshToken)
-      } else if (isFirstMessage && activeConvId) {
-        generateAndSaveTitle(activeConvId, userText, freshToken)
+      if (isFirstMessage) {
+        generateAndSaveTitle(resolvedThreadId, userText, freshToken)
       }
 
       const aiText = data.response || 'I processed your request.'
-
-      // Add AI response to UI
       const tempAiId = `temp-a-${Date.now()}`
       setMessages((prev) => [...prev, { id: tempAiId, role: 'assistant', content: aiText, createdAt: new Date().toISOString() }])
 
@@ -403,49 +447,55 @@ export default function ChatsPage() {
   /* ── Confirm / Cancel agent actions ────────────────────────────────────── */
 
   async function handleConfirm() {
-    const activeConv = conversations.find((c) => c.id === activeConvId)
-    const agentThreadId = activeConv?.threadId
-    if (!agentThreadId) return
+    if (!activeThreadId) return
     const freshToken = await getFreshToken()
     setIsSending(true)
-    
     setPendingAction(prev => ({ ...prev, status: 'completed' }))
-    
+
     try {
-      const res = await fetch(`${API_BASE}/api/agent/confirm/${agentThreadId}`, {
+      const res = await fetch(`${API_BASE}/api/agent/confirm/${activeThreadId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${freshToken}` },
         body: JSON.stringify({ action: 'confirm' }),
       })
       const data = await res.json()
       const text = data.response || 'Action confirmed.'
-      setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', content: text }])
-      // Clean sessionStorage so stale data doesn't interfere with the next invoice
-      if (activeConvId) sessionStorage.removeItem(`pending_action_${activeConvId}`)
+      const nowIso = new Date().toISOString()
+      setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', content: text, createdAt: nowIso }])
+      sessionStorage.removeItem(`pending_action_${activeThreadId}`)
+      setThreads((prev) =>
+        prev.map((t) => (t.id === activeThreadId ? { ...t, updatedAt: nowIso, lastMessageAt: nowIso } : t))
+      )
     } catch (err) {
       setMessages((prev) => [...prev, { id: `e-${Date.now()}`, role: 'assistant', content: `Error: ${err.message}` }])
-    } finally { setIsSending(false) }
+    } finally {
+      setIsSending(false)
+    }
   }
 
   async function handleCancel() {
-    const activeConv = conversations.find((c) => c.id === activeConvId)
-    const agentThreadId = activeConv?.threadId
-    if (!agentThreadId) return
+    if (!activeThreadId) return
     const freshToken = await getFreshToken()
     setIsSending(true)
     setPendingAction(prev => ({ ...prev, status: 'cancelled' }))
+
     try {
-      const res = await fetch(`${API_BASE}/api/agent/cancel/${agentThreadId}`, {
+      const res = await fetch(`${API_BASE}/api/agent/cancel/${activeThreadId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${freshToken}` },
       })
       const data = await res.json()
-      setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', content: data.response || 'Action cancelled.' }])
-      // Clean sessionStorage so stale data doesn't interfere with the next invoice
-      if (activeConvId) sessionStorage.removeItem(`pending_action_${activeConvId}`)
+      const nowIso = new Date().toISOString()
+      setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', content: data.response || 'Action cancelled.', createdAt: nowIso }])
+      sessionStorage.removeItem(`pending_action_${activeThreadId}`)
+      setThreads((prev) =>
+        prev.map((t) => (t.id === activeThreadId ? { ...t, updatedAt: nowIso, lastMessageAt: nowIso } : t))
+      )
     } catch {
       setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', content: 'Action cancelled.' }])
-    } finally { setIsSending(false) }
+    } finally {
+      setIsSending(false)
+    }
   }
 
   function handleModify(mode) {
@@ -456,7 +506,6 @@ export default function ChatsPage() {
       else if (summary.includes('bill') || type.includes('bill')) navigate('/bill/new', { state: { prefill: pendingAction } })
       else navigate('/invoice/new', { state: { prefill: pendingAction } })
     } else {
-      // Build a helpful pre-fill so the user knows exactly what to change
       const a = pendingAction
       let prefill = 'Please modify the invoice'
       if (a) {
@@ -470,7 +519,7 @@ export default function ChatsPage() {
 
   /* ── Derived state ──────────────────────────────────────────────────────── */
 
-  const activeConv = conversations.find((c) => c.id === activeConvId)
+  const activeThread = threads.find((t) => t.id === activeThreadId)
   const hasMessages = messages.length > 0
 
   /* ── Render ─────────────────────────────────────────────────────────────── */
@@ -479,7 +528,7 @@ export default function ChatsPage() {
     <DashboardLayout activeNav="chats">
       <div className="flex h-full -m-6 overflow-hidden rounded-none" style={{ height: 'calc(100vh - 72px)' }}>
 
-        {/* ── Left Panel: Conversation List ─────────────────────────────── */}
+        {/* ── Left Panel: Thread Tabs List ──────────────────────────────── */}
         <div className="w-[300px] shrink-0 flex flex-col border-r border-[#E5E7EB] bg-white">
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-[#E5E7EB]">
@@ -500,11 +549,11 @@ export default function ChatsPage() {
 
           {/* List */}
           <div className="flex-1 overflow-y-auto">
-            {convsLoading ? (
+            {threadsLoading ? (
               <div className="flex items-center justify-center py-12">
                 <HiOutlineArrowPath className="h-5 w-5 text-[#9CA3AF] animate-spin" />
               </div>
-            ) : conversations.length === 0 ? (
+            ) : threads.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#F3F4F6] mb-3">
                   <HiOutlineChatBubbleLeftRight className="h-7 w-7 text-[#9CA3AF]" />
@@ -513,17 +562,17 @@ export default function ChatsPage() {
                 <p className="text-[13px] text-[#6B7280] mt-1">Start a new conversation with the AI Assistant</p>
               </div>
             ) : (
-              conversations.map((conv) => (
-                <ConversationItem
-                  key={conv.id}
-                  conv={conv}
-                  isActive={conv.id === activeConvId}
+              threads.map((thread) => (
+                <ThreadTabItem
+                  key={thread.id}
+                  thread={thread}
+                  isActive={thread.id === activeThreadId}
                   onClick={() => {
-                    setActiveConvId(conv.id)
-                    // Do NOT clear pending action here; the useEffect will restore it.
-                    sessionStorage.setItem('chatspage_active_conv', conv.id)
+                    selectThread(thread.id)
+                    sessionStorage.setItem('chatspage_active_thread', thread.id)
+                    setSearchParams({ thread: thread.id }, { replace: true })
                   }}
-                  onDelete={(e) => handleDeleteConversation(conv.id, e)}
+                  onDelete={(e) => handleDeleteThread(thread.id, e)}
                 />
               ))
             )}
@@ -532,7 +581,7 @@ export default function ChatsPage() {
 
         {/* ── Right Panel: Message Thread ───────────────────────────────── */}
         <div className="flex-1 flex flex-col bg-[#FAFBFC] min-w-0">
-          {!activeConvId && !isComposing ? (
+          {!activeThreadId && !isComposing ? (
             /* Empty state */
             <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8">
               <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-[#0F766E]/10 to-[#14B8A6]/10 ring-1 ring-[#0F766E]/20">
@@ -541,7 +590,7 @@ export default function ChatsPage() {
               <div className="text-center">
                 <h3 className="text-[20px] font-bold text-[#111827]">AI Accounting Assistant</h3>
                 <p className="mt-2 text-[14px] text-[#6B7280] max-w-sm">
-                  Select a conversation from the left, or start a new chat to ask about invoices, expenses, forecasts and more.
+                  Select a chat tab from the left, or start a new chat to ask about invoices, expenses, forecasts and more.
                 </p>
               </div>
               <button
@@ -559,14 +608,16 @@ export default function ChatsPage() {
               <div className="shrink-0 flex items-center justify-between border-b border-[#E5E7EB] bg-white px-6 py-3.5 shadow-sm">
                 <div className="flex items-center gap-3">
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#0F766E] to-[#14B8A6]">
-                    <HiOutlineSparkles className="h-4.5 w-4.5 text-white h-5 w-5" />
+                    <HiOutlineSparkles className="h-5 w-5 text-white" />
                   </div>
                   <div>
-                    <p className="text-[14px] font-bold text-[#111827]">AI Accounting Assistant</p>
-                    {activeConv && (
+                    <p className="text-[14px] font-bold text-[#111827]">
+                      {activeThread?.title || 'AI Accounting Assistant'}
+                    </p>
+                    {activeThread && (
                       <p className="text-[12px] text-[#6B7280] flex items-center gap-1">
                         <HiOutlineClock className="h-3.5 w-3.5" />
-                        {formatDate(activeConv.createdAt || activeConv.created_at)}
+                        {formatDate(activeThread.lastMessageAt || activeThread.last_message_at || activeThread.createdAt || activeThread.created_at)}
                       </p>
                     )}
                   </div>
@@ -599,7 +650,7 @@ export default function ChatsPage() {
                     {/* Quick prompts */}
                     <div className="grid grid-cols-2 gap-3 mt-2 w-full max-w-md">
                       {[
-                        { emoji: '📊', text: "What was my revenue last month?" },
+                        { emoji: '📊', text: 'What was my revenue last month?' },
                         { emoji: '📋', text: 'Show overdue invoices' },
                         { emoji: '🔮', text: 'Forecast next 3 months expenses' },
                         { emoji: '📄', text: 'Create an invoice for $500' },
@@ -728,9 +779,9 @@ export default function ChatsPage() {
   )
 }
 
-/* ─── Conversation List Item ───────────────────────────────────────────────── */
+/* ─── Thread Tab Item ──────────────────────────────────────────────────────── */
 
-function ConversationItem({ conv, isActive, onClick, onDelete }) {
+function ThreadTabItem({ thread, isActive, onClick, onDelete }) {
   const [hovered, setHovered] = useState(false)
 
   return (
@@ -747,11 +798,11 @@ function ConversationItem({ conv, isActive, onClick, onDelete }) {
       </div>
       <div className="flex-1 min-w-0">
         <p className={`text-[13px] font-semibold truncate ${isActive ? 'text-[#0F766E]' : 'text-[#111827]'}`}>
-          {conv.title || 'New Chat'}
+          {thread.title || 'New Chat'}
         </p>
         <p className="text-[12px] text-[#9CA3AF] mt-0.5 flex items-center gap-1">
           <HiOutlineClock className="h-3 w-3" />
-          {timeAgo(conv.createdAt || conv.created_at)}
+          {timeAgo(thread.lastMessageAt || thread.last_message_at || thread.createdAt || thread.created_at)}
         </p>
       </div>
       {(hovered || isActive) && (
@@ -759,7 +810,7 @@ function ConversationItem({ conv, isActive, onClick, onDelete }) {
           type="button"
           onClick={onDelete}
           className="shrink-0 flex h-7 w-7 items-center justify-center rounded-lg text-[#9CA3AF] hover:bg-[#FEE2E2] hover:text-[#DC2626] transition-all"
-          title="Delete conversation"
+          title="Delete chat thread"
         >
           <HiOutlineTrash className="h-3.5 w-3.5" />
         </button>

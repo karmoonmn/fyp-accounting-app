@@ -1,0 +1,388 @@
+{
+  "extraction": {
+    "accuracy": 100.0,
+    "passed": true,
+    "total_fields": 200,
+    "correct_fields": 200,
+    "details": [
+      {
+        "doc_id": 1,
+        "filename": "doc_01_invoice.pdf",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 2,
+        "filename": "doc_02_invoice.jpg",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 3,
+        "filename": "doc_03_invoice.pdf",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 4,
+        "filename": "doc_04_invoice.jpg",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 5,
+        "filename": "doc_05_invoice.pdf",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 6,
+        "filename": "doc_06_invoice.jpg",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 7,
+        "filename": "doc_07_invoice.pdf",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 8,
+        "filename": "doc_08_invoice.jpg",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 9,
+        "filename": "doc_09_invoice.pdf",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 10,
+        "filename": "doc_10_invoice.jpg",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 11,
+        "filename": "doc_11_invoice.png",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 12,
+        "filename": "doc_12_invoice.pdf",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 13,
+        "filename": "doc_13_invoice.png",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 14,
+        "filename": "doc_14_invoice.pdf",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 15,
+        "filename": "doc_15_invoice.png",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 16,
+        "filename": "doc_16_invoice.pdf",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 17,
+        "filename": "doc_17_invoice.png",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 18,
+        "filename": "doc_18_invoice.pdf",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 19,
+        "filename": "doc_19_invoice.png",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 20,
+        "filename": "doc_20_invoice.pdf",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 21,
+        "filename": "doc_21_bill.png",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 22,
+        "filename": "doc_22_bill.pdf",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 23,
+        "filename": "doc_23_bill.png",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 24,
+        "filename": "doc_24_bill.pdf",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 25,
+        "filename": "doc_25_bill.png",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 26,
+        "filename": "doc_26_bill.pdf",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 27,
+        "filename": "doc_27_bill.png",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 28,
+        "filename": "doc_28_bill.pdf",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 29,
+        "filename": "doc_29_bill.png",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 30,
+        "filename": "doc_30_bill.pdf",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 31,
+        "filename": "doc_31_bill.png",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 32,
+        "filename": "doc_32_bill.pdf",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 33,
+        "filename": "doc_33_bill.png",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 34,
+        "filename": "doc_34_bill.pdf",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 35,
+        "filename": "doc_35_bill.png",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 36,
+        "filename": "doc_36_bill.pdf",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 37,
+        "filename": "doc_37_bill.png",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 38,
+        "filename": "doc_38_bill.pdf",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 39,
+        "filename": "doc_39_bill.png",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 40,
+        "filename": "doc_40_bill.pdf",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 41,
+        "filename": "doc_41_bank_statement.png",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 42,
+        "filename": "doc_42_bank_statement.pdf",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 43,
+        "filename": "doc_43_bank_statement.png",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 44,
+        "filename": "doc_44_bank_statement.pdf",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 45,
+        "filename": "doc_45_bank_statement.png",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 46,
+        "filename": "doc_46_bank_statement.pdf",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 47,
+        "filename": "doc_47_bank_statement.png",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 48,
+        "filename": "doc_48_bank_statement.pdf",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 49,
+        "filename": "doc_49_bank_statement.png",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      },
+      {
+        "doc_id": 50,
+        "filename": "doc_50_bank_statement.pdf",
+        "score": 4,
+        "max": 4,
+        "percentage": 100.0
+      }
+    ]
+  },
+  "rag": {
+    "accuracy": 100.0,
+    "passed": true,
+    "total": 16,
+    "correct": 16
+  },
+  "double_entry": {
+    "accuracy": 100.0,
+    "passed": true,
+    "total_debit": 3065.2000000000003,
+    "total_credit": 3065.2000000000003,
+    "unbalanced_entries": 0
+  },
+  "ml_forecast": {
+    "mape": 0.5,
+    "passed": true,
+    "category_breakdown": {
+      "Operating Expenses": 0.25,
+      "Cloud Hosting": 0.39,
+      "Sales Revenue": 0.86
+    }
+  },
+  "time_reduction": {
+    "manual_time_sec": 88.5,
+    "ai_time_sec": 24.2,
+    "reduction_percentage": 72.7,
+    "passed": true
+  }
+}

@@ -47,6 +47,7 @@ public class SecurityConfig {
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/register-company").permitAll()
+                        .requestMatchers(HttpMethod.DELETE, "/api/threads/**").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/**")
                         .hasAnyRole(UserRoleNames.SUPER_ADMIN, UserRoleNames.ADMIN)
                         .anyRequest().authenticated());

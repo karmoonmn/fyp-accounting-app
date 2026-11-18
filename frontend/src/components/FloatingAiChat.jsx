@@ -12,7 +12,6 @@ import {
 } from 'react-icons/hi2'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
-import { api } from '../api'
 
 const QUICK_PROMPTS = [
   { emoji: '📊', text: 'What was my revenue last month?' },
@@ -23,16 +22,18 @@ const QUICK_PROMPTS = [
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8080'
 
+const WELCOME_MESSAGE = {
+  id: 'welcome',
+  role: 'assistant',
+  text: "Hi! I'm your AI Accounting Assistant. I can help create invoices, manage expenses, analyze finances, and forecast trends.\n\nHow can I help you today?",
+}
+
 function formatMarkdown(text) {
   if (!text) return ''
   return text
-    // Bold: **text** → <strong>text</strong>
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    // Inline code: `text` → <code>text</code>
     .replace(/`([^`]+)`/g, '<code style="background:#E5E7EB;padding:1px 5px;border-radius:4px;font-size:12px">$1</code>')
-    // Bullet points: lines starting with * or • or -
     .replace(/^[\*•\-]\s+(.*)$/gm, '<div style="padding-left:12px;margin:4px 0">• $1</div>')
-    // Line breaks
     .replace(/\n/g, '<br/>')
 }
 
@@ -107,57 +108,39 @@ function ConfirmationCard({ action, onConfirm, onCancel, onModify }) {
 /* ─── Main Component ───────────────────────────────────────────────────────── */
 
 export default function FloatingAiChat() {
-  const { idToken: token, me, getFreshToken } = useAuth()
+  const { me, getFreshToken } = useAuth()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
-  const [messages, setMessages] = useState([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      text: "Hi! I'm your AI Accounting Assistant. I can help create invoices, manage expenses, analyze finances, and forecast trends.\n\nHow can I help you today?",
-    },
-  ])
+  const [messages, setMessages] = useState([WELCOME_MESSAGE])
   const [isLoading, setIsLoading] = useState(false)
   const companyId = me?.company?.id || me?.companyId || 1
 
-  const [convId, setConvId] = useState(() => localStorage.getItem(`floating_conv_id_${companyId}`) || null)
-  const [threadId, setThreadId] = useState(() => localStorage.getItem(`floating_thread_id_${companyId}`) || null)
-  const [pendingAction, setPendingAction] = useState(() => {
-    const saved = sessionStorage.getItem(`floating_pending_action_${companyId}`)
-    if (saved) {
-      try { return JSON.parse(saved) } catch (e) { return null }
-    }
-    return null
-  })
+  // Ephemeral across page refreshes: starts as null on load/refresh,
+  // and creates a new thread when the user first engages with the chat.
+  const [threadId, setThreadId] = useState(null)
+  const [pendingAction, setPendingAction] = useState(null)
   const [selectedFile, setSelectedFile] = useState(null)
+
   const listRef = useRef(null)
   const fileInputRef = useRef(null)
   const inputRef = useRef(null)
   const isSendingRef = useRef(false)
 
+  // Reset to a fresh thread if company changes and scrub any legacy localStorage keys
   useEffect(() => {
-    const savedConv = localStorage.getItem(`floating_conv_id_${companyId}`)
-    const savedThread = localStorage.getItem(`floating_thread_id_${companyId}`)
-    setConvId(savedConv || null)
-    setThreadId(savedThread || null)
-    
-    // DO NOT clear pendingAction here! It is already initialized from sessionStorage!
-    
-    if (!savedConv) {
-      setMessages([{
-        id: 'welcome',
-        role: 'assistant',
-        text: "Hi! I'm your AI Accounting Assistant. I can help create invoices, manage expenses, analyze finances, and forecast trends.\n\nHow can I help you today?",
-      }])
-    }
+    localStorage.removeItem(`floating_conv_id_${companyId}`)
+    localStorage.removeItem(`floating_thread_id_${companyId}`)
+    sessionStorage.removeItem(`floating_pending_action_${companyId}`)
+    setThreadId(null)
+    setPendingAction(null)
+    setMessages([WELCOME_MESSAGE])
   }, [companyId])
 
   useEffect(() => {
     if (!open) return
     function onKey(e) { if (e.key === 'Escape') setOpen(false) }
     window.addEventListener('keydown', onKey)
-    // Auto-focus input when opening
     setTimeout(() => inputRef.current?.focus(), 100)
     return () => window.removeEventListener('keydown', onKey)
   }, [open])
@@ -167,41 +150,12 @@ export default function FloatingAiChat() {
     listRef.current.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' })
   }, [open, messages, isLoading])
 
-  // Fetch history on initial load if we have a convId
-  useEffect(() => {
-    async function fetchHistory() {
-      if (!convId || !token) return
-      try {
-        const data = await api(`/api/conversations/${convId}/messages`, { token })
-        if (data && data.length > 0) {
-          // Format messages for UI
-          const uniqueMsgs = data.map(m => ({
-            id: m.id,
-            role: m.role,
-            text: m.content
-          }))
-          setMessages([
-            {
-              id: 'welcome',
-              role: 'assistant',
-              text: "Hi! I'm your AI Accounting Assistant. I can help create invoices, manage expenses, analyze finances, and forecast trends.\n\nHow can I help you today?",
-            },
-            ...uniqueMsgs
-          ])
-        }
-      } catch (err) {
-        console.error("Failed to load chat history", err)
-      }
-    }
-    fetchHistory()
-  }, [convId, token])
-
   async function send(text) {
     if (isSendingRef.current) return
     const trimmed = (text ?? input).trim()
     if (!trimmed && !selectedFile) return
     if (isLoading) return
-    
+
     isSendingRef.current = true
     const freshToken = await getFreshToken()
     if (!freshToken) {
@@ -211,41 +165,33 @@ export default function FloatingAiChat() {
     const userText = trimmed || `[Uploaded: ${selectedFile?.name}]`
     setMessages((prev) => [...prev, { id: `u-${Date.now()}`, role: 'user', text: userText }])
     setInput('')
-    
-    // Clear the old card if it's already finished
+
     if (pendingAction && (pendingAction.status === 'completed' || pendingAction.status === 'cancelled')) {
       setPendingAction(null)
-      sessionStorage.removeItem(`floating_pending_action_${companyId}`)
     }
-    
+
     setIsLoading(true)
     try {
       const formData = new FormData()
       formData.append('message', userText)
       formData.append('company_id', companyId.toString())
       formData.append('auth_token', freshToken)
-      if (convId) formData.append('conversation_id', convId)
+      if (threadId) formData.append('thread_id', threadId)
       if (selectedFile) formData.append('file', selectedFile)
+
       const res = await fetch(`${API_BASE}/api/agent/chat`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${freshToken}`, 'X-Company-Id': String(companyId) },
         body: formData,
       })
       const data = await res.json()
-      
-      // Save conversation state if it's new
-      if (data.conversation_id && data.conversation_id !== convId) {
-        setConvId(data.conversation_id)
-        localStorage.setItem(`floating_conv_id_${companyId}`, data.conversation_id)
-      }
+
       if (data.thread_id && data.thread_id !== threadId) {
         setThreadId(data.thread_id)
-        localStorage.setItem(`floating_thread_id_${companyId}`, data.thread_id)
       }
       setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', text: data.response || 'I processed your request.' }])
       if (data.requires_confirmation && data.proposed_action) {
         setPendingAction(data.proposed_action)
-        sessionStorage.setItem(`floating_pending_action_${companyId}`, JSON.stringify(data.proposed_action))
       }
     } catch (err) {
       setMessages((prev) => [...prev, { id: `e-${Date.now()}`, role: 'assistant', text: `Sorry, an error occurred: ${err.message}` }])
@@ -260,9 +206,8 @@ export default function FloatingAiChat() {
     if (!threadId) return
     const freshToken = await getFreshToken()
     setIsLoading(true)
-    
     setPendingAction(prev => ({ ...prev, status: 'completed' }))
-    
+
     try {
       const res = await fetch(`${API_BASE}/api/agent/confirm/${threadId}`, {
         method: 'POST',
@@ -271,20 +216,19 @@ export default function FloatingAiChat() {
       })
       const data = await res.json()
       setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', text: data.response || 'Action confirmed.' }])
-      // Clean sessionStorage so stale data doesn't interfere with the next invoice
-      sessionStorage.removeItem(`floating_pending_action_${companyId}`)
     } catch (err) {
       setMessages((prev) => [...prev, { id: `e-${Date.now()}`, role: 'assistant', text: `Error: ${err.message}` }])
-    } finally { setIsLoading(false) }
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   async function handleCancel() {
     if (!threadId) return
     const freshToken = await getFreshToken()
     setIsLoading(true)
-    
     setPendingAction(prev => ({ ...prev, status: 'cancelled' }))
-    
+
     try {
       const res = await fetch(`${API_BASE}/api/agent/cancel/${threadId}`, {
         method: 'POST',
@@ -292,11 +236,11 @@ export default function FloatingAiChat() {
       })
       const data = await res.json()
       setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', text: data.response || 'Action cancelled.' }])
-      // Clean sessionStorage so stale data doesn't interfere with the next invoice
-      sessionStorage.removeItem(`floating_pending_action_${companyId}`)
-    } catch (err) {
+    } catch {
       setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', text: 'Action cancelled.' }])
-    } finally { setIsLoading(false) }
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   function handleModify(mode) {
@@ -318,17 +262,9 @@ export default function FloatingAiChat() {
   }
 
   function handleNewChat() {
-    setMessages([{
-      id: 'welcome',
-      role: 'assistant',
-      text: "Hi! I'm your AI Accounting Assistant. I can help create invoices, manage expenses, analyze finances, and forecast trends.\n\nHow can I help you today?",
-    }])
+    setMessages([WELCOME_MESSAGE])
     setThreadId(null)
-    setConvId(null)
-    localStorage.removeItem(`floating_thread_id_${companyId}`)
-    localStorage.removeItem(`floating_conv_id_${companyId}`)
     setPendingAction(null)
-    sessionStorage.removeItem(`floating_pending_action_${companyId}`)
     setInput('')
   }
 
@@ -374,19 +310,16 @@ export default function FloatingAiChat() {
               </div>
               <div>
                 <h3 className="text-[16px] font-bold text-white tracking-tight">AI Assistant</h3>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  {/*<span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-300 animate-pulse" />*/}
-                  {/*<p className="text-[12px] font-medium text-white/80">Gemini 2.5 Flash</p>*/}
-                </div>
+                <div className="flex items-center gap-1.5 mt-0.5" />
               </div>
             </div>
             <div className="flex items-center gap-1">
-              {convId && (
+              {threadId && (
                 <button
                   type="button"
                   onClick={() => {
                     setOpen(false)
-                    navigate(`/chats?conversation=${convId}`)
+                    navigate(`/chats?thread=${threadId}`)
                   }}
                   className="rounded-lg p-2 text-white/70 hover:bg-white/20 hover:text-white transition-all active:scale-95"
                   title="Open in full page"
@@ -544,9 +477,7 @@ export default function FloatingAiChat() {
               <HiOutlinePaperAirplane className="h-5 w-5 -ml-0.5" />
             </button>
           </div>
-          <p className="mt-3 text-center text-[11px] font-medium text-[#9CA3AF]">
-            {/*Powered by <span className="font-semibold">Gemini 2.5 Flash</span> · LangGraph*/}
-          </p>
+          <p className="mt-3 text-center text-[11px] font-medium text-[#9CA3AF]" />
         </div>
       </div>
 

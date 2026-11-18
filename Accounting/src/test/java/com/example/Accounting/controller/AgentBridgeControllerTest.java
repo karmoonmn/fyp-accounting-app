@@ -1,25 +1,17 @@
 package com.example.Accounting.controller;
 
-import com.example.Accounting.model.Conversation;
-import com.example.Accounting.repo.ChatMessageRepo;
-import com.example.Accounting.repo.ConversationRepo;
+import com.example.Accounting.service.SupabaseService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.Optional;
-import java.util.UUID;
-
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
 
 /**
  * Unit and Integration-level Controller Tests for Module 1: Financial Document Extraction
@@ -32,10 +24,7 @@ import static org.mockito.Mockito.*;
 class AgentBridgeControllerTest {
 
     @Mock
-    private ConversationRepo conversationRepo;
-
-    @Mock
-    private ChatMessageRepo chatMessageRepo;
+    private SupabaseService supabaseService;
 
     @Mock
     private RestTemplate restTemplate;
@@ -46,7 +35,6 @@ class AgentBridgeControllerTest {
     @Test
     @DisplayName("FR-01 & FR-02: Successfully upload invoice PNG document and send to extraction API")
     void testUploadInvoiceImageSuccessfully() {
-        // Mock multipart file for invoice image (FR-01)
         MockMultipartFile invoiceFile = new MockMultipartFile(
                 "file",
                 "invoice_test.png",
@@ -54,19 +42,15 @@ class AgentBridgeControllerTest {
                 "fake image content".getBytes()
         );
 
-        lenient().when(conversationRepo.findById(any(UUID.class))).thenReturn(Optional.empty());
-        lenient().when(conversationRepo.save(any(Conversation.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        // Execute controller method
         ResponseEntity<String> response = agentBridgeController.chat(
                 "Please extract this invoice",
                 1L,
                 "Bearer mock-token-12345",
-                "conv-test-001",
-                invoiceFile
+                "thread-test-001",
+                invoiceFile,
+                true
         );
 
-        // Verify that the call was handled
         assertNotNull(response);
     }
 
@@ -80,15 +64,13 @@ class AgentBridgeControllerTest {
                 "%PDF-1.4 dummy statement content".getBytes()
         );
 
-        lenient().when(conversationRepo.findById(any(UUID.class))).thenReturn(Optional.empty());
-        lenient().when(conversationRepo.save(any(Conversation.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
         ResponseEntity<String> response = agentBridgeController.chat(
                 "Extract statement summary",
                 1L,
                 "Bearer mock-token-67890",
-                "conv-test-002",
-                pdfFile
+                "thread-test-002",
+                pdfFile,
+                true
         );
 
         assertNotNull(response);
